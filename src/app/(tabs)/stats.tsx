@@ -8,7 +8,6 @@ import { getExercise } from '@/data/exercises';
 import { addDays, formatDate, formatDuration } from '@/domain/dates';
 import { weeklyStreak } from '@/domain/progression';
 import { bodyWeightSeries, exerciseSeries, monthlySeries, periodLabel, trainedExercises, weeklySeries, xpSeries, type ExerciseMetric } from '@/domain/training';
-import { totalVolumeKg } from '@/domain/xp';
 import { Bars, ChartCard, Line } from '@/features/ChartCard';
 import { useApp } from '@/state/AppProvider';
 import { colors, spacing } from '@/theme/tokens';
@@ -83,7 +82,6 @@ export default function Stats() {
         <StatCard label="Trainingszeit" value={formatDuration(totalTime)} icon={Clock} />
         <StatCard label="Wochen-Serie" value={`${streak}`} hint={streak === 1 ? 'Woche in Folge' : 'Wochen in Folge'} icon={Flame} />
       </View>
-      <StatCard label="Bewegtes Gewicht" value={`${totalVolumeKg(sessions).toLocaleString('de-DE')} kg`} hint="Summe aus Gewicht × Wiederholungen" />
 
       <Card variant="highlight" onPress={() => router.push('/report')} accessibilityLabel="Dein Fortschritt: Wochen- und Monatsbericht öffnen" style={styles.reportLink}>
         <TrendingUp size={22} color={colors.accent} />

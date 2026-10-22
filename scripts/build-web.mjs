@@ -27,12 +27,15 @@ if (result.status !== 0) process.exit(result.status ?? 1);
 const indexPath = join(dist, 'index.html');
 let html = readFileSync(indexPath, 'utf8');
 html = html.replace('<html lang="en">', '<html lang="de">');
+// viewport-fit=cover: Sonst meldet iOS in der Homescreen-App keine sicheren Bereiche (env(safe-area-inset-*)),
+// und die Tab-Leiste liegt unter dem Home-Balken.
+html = html.replace(/<meta name="viewport" content="[^"]*"\s*\/?>/, '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />');
 const head = `
     <meta name="description" content="Fitness-RPG: Trainingsplan, XP, Level, Quests und Ränge." />
     <meta name="theme-color" content="#0B0D0E" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="GYMQUEST" />
     <link rel="manifest" href="${base}manifest.webmanifest" />
     <link rel="apple-touch-icon" href="${base}icons/apple-touch-icon.png" />

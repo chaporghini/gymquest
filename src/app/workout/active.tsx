@@ -31,13 +31,7 @@ const EFFORT_OPTIONS: { value: Effort; label: string }[] = [
   { value: 'max', label: 'Am Limit' },
 ];
 
-const READINESS_OPTIONS = [
-  { value: 1, label: '1 · Erschöpft' },
-  { value: 2, label: '2 · Müde' },
-  { value: 3, label: '3 · Normal' },
-  { value: 4, label: '4 · Gut' },
-  { value: 5, label: '5 · Top' },
-];
+const READINESS_OPTIONS = [1, 2, 3, 4, 5];
 
 function haptic(enabled: boolean, type: 'success' | 'light') {
   if (!enabled || Platform.OS === 'web') return;
@@ -246,11 +240,12 @@ export default function ActiveWorkoutScreen() {
       {done === 0 || workout.readiness != null ? (
         <Card variant="secondary" style={styles.feedbackCard}>
           <AppText variant="bodyStrong">Wie fit fühlst du dich heute?</AppText>
-          <View style={styles.chips} accessibilityRole="radiogroup">
-            {READINESS_OPTIONS.map((o) => (
-              <Chip key={o.value} role="radio" label={o.label} selected={workout.readiness === o.value} onPress={() => update((w) => ({ ...w, readiness: w.readiness === o.value ? null : o.value }))} />
+          <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel="Tagesform von 1 (erschöpft) bis 5 (top)">
+            {READINESS_OPTIONS.map((v) => (
+              <Chip key={v} role="radio" label={String(v)} selected={workout.readiness === v} onPress={() => update((w) => ({ ...w, readiness: w.readiness === v ? null : v }))} />
             ))}
           </View>
+          <AppText variant="caption" tone="secondary">1 = erschöpft · 5 = top</AppText>
           {workout.readiness != null && workout.readiness <= 2 ? (
             <AppText variant="small" tone="secondary">Heute lieber beim gewohnten Gewicht bleiben oder etwas leichter trainieren. Steigerungen holst du an einem fitteren Tag nach.</AppText>
           ) : null}

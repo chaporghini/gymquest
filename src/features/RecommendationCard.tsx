@@ -41,14 +41,14 @@ export function RecommendationCard({ recommendation: r, compact = false }: { rec
         </View>
         <ChevronRight size={18} color={colors.textSecondary} style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }} />
       </Pressable>
-      <View style={styles.facts}>
-        <Fact label="Ziel" value={targetText(r)} />
-        <Fact label="Gewicht" value={load} />
-        <Fact label="Pause" value={`${r.restSeconds[0]}–${r.restSeconds[1]} s`} />
-        <Fact label="Reserve" value={`${formatRir(r.targetRepsInReserve)} Wdh.`} />
-      </View>
       {open ? (
         <View style={styles.details}>
+          <View style={styles.facts}>
+            <Fact label="Ziel" value={targetText(r)} />
+            <Fact label="Gewicht" value={load} />
+            <Fact label="Pause" value={`${r.restSeconds[0]}–${r.restSeconds[1]} s`} />
+            <Fact label="Reserve" value={`${formatRir(r.targetRepsInReserve)} Wdh.`} />
+          </View>
           {r.reasoning.map((t, i) => <AppText key={`r${i}`} variant="small">{t}</AppText>)}
           {r.hints.map((t, i) => <AppText key={`h${i}`} variant="small" tone="secondary">• {t}</AppText>)}
           {r.loadType !== 'bodyweight' ? (
@@ -77,6 +77,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1, gap: 2 },
   facts: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   fact: { minWidth: 70, gap: 2 },
-  details: { gap: spacing.xs },
+  details: { gap: spacing.sm },
   bold: { fontWeight: '700' },
 });

@@ -1,10 +1,9 @@
 import { router } from 'expo-router';
-import { Award, CalendarDays, Dumbbell, Info, Play, Sparkles, Target } from 'lucide-react-native';
+import { CalendarDays, Info, Play, Sparkles } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import {
-  AchievementCard,
   AppText,
   Button,
   Card,
@@ -17,9 +16,9 @@ import {
   WorkoutCard,
   XPBar,
 } from '@/components';
-import { addDays, formatDate, isSameDay, WEEKDAYS_LONG, WEEKDAYS_SHORT, weekdayIndex } from '@/domain/dates';
+import { addDays, isSameDay, WEEKDAYS_LONG, WEEKDAYS_SHORT, weekdayIndex } from '@/domain/dates';
 import { getGreeting } from '@/domain/greeting';
-import { computeAchievements, computeWeeklyQuests, summarizeWeek } from '@/domain/progression';
+import { computeWeeklyQuests, summarizeWeek } from '@/domain/progression';
 import { getNextRank } from '@/domain/ranks';
 import { getWeekOverview } from '@/domain/weekPlan';
 import { getNextSession } from '@/domain/workout';
@@ -36,17 +35,9 @@ export default function Home() {
   const next = useMemo(() => getNextSession(plan, sessions, now), [plan, sessions, now]);
   const week = useMemo(() => summarizeWeek(sessions, plan, now), [sessions, plan, now]);
   const quests = useMemo(() => computeWeeklyQuests({ sessions, xpEvents, plan, now }), [sessions, xpEvents, plan, now]);
-  const achievements = useMemo(
-    () =>
-      computeAchievements({ sessions, xpEvents, plan, now })
-        .filter((a) => a.unlockedAt)
-        .sort((a, b) => (b.unlockedAt ?? '').localeCompare(a.unlockedAt ?? ''))
-        .slice(0, 2),
-    [sessions, xpEvents, plan, now],
-  );
   const overview = useMemo(() => getWeekOverview(plan, sessions, now, now), [plan, sessions, now]);
   const nextRank = getNextRank(level.level);
-  const activeQuests = quests.filter((q) => !q.completed).slice(0, 3);
+  const activeQuests = quests.filter((q) => !q.completed).slice(0, 1);
   const greeting = getGreeting({
     name: profile?.displayName ?? '',
     date: now,
@@ -56,7 +47,6 @@ export default function Home() {
     trainedToday: sessions.some((s) => isSameDay(new Date(s.finishedAt), now)),
     openQuests: quests.filter((q) => !q.completed).length,
   });
-  const recentXp = xpEvents.slice(0, 3);
 
   const start = async () => {
     setStartError(null);
@@ -90,43 +80,6 @@ export default function Home() {
         <AppText variant="title" accessibilityRole="header">{greeting.title}</AppText>
         <AppText tone="secondary">{greeting.subtitle}</AppText>
       </View>
-
-      <Card
-        style={styles.levelCard}
-        onPress={() => router.push('/progress')}
-        accessibilityLabel={`Rang ${rank.name}, Level ${level.level}, ${level.totalXp} XP gesamt, noch ${level.xpRemaining} XP bis Level ${level.level + 1}`}
-        accessibilityHint="Öffnet die XP- und Rangübersicht">
-        <View style={styles.levelRow}>
-          <LevelBadge level={level.level} size="lg" />
-          <View style={styles.flex}>
-            <AppText variant="caption" tone="accent">RANG</AppText>
-            <AppText variant="title">{rank.name}</AppText>
-            <AppText variant="small" tone="secondary">{level.totalXp.toLocaleString('de-DE')} XP gesamt</AppText>
-          </View>
-        </View>
-        <XPBar progress={level} />
-        {nextRank ? (
-          <AppText variant="small" tone="secondary">Nächster Rang: {nextRank.name} ab Level {nextRank.minLevel}</AppText>
-        ) : null}
-        {recentXp.length > 0 ? (
-          <View style={styles.recent}>
-            <AppText variant="caption" tone="secondary">ZULETZT ERHALTEN</AppText>
-            {recentXp.map((e) => {
-              const Icon = e.source === 'workout' ? Dumbbell : e.source === 'quest' ? Target : Award;
-              return (
-                <View key={e.id} style={styles.recentRow}>
-                  <Icon size={14} color={colors.textSecondary} />
-                  <AppText variant="small" numberOfLines={1} style={styles.flex}>{e.label}</AppText>
-                  <AppText variant="small" tone="secondary">{formatDate(e.createdAt).slice(0, 10)}</AppText>
-                  <AppText variant="small" tone="accent" style={styles.bold}>{e.amount > 0 ? `+${e.amount}` : '–'}</AppText>
-                </View>
-              );
-            })}
-          </View>
-        ) : (
-          <AppText variant="small" tone="secondary">XP gibt es für abgeschlossene Trainings, Quests und Achievements.</AppText>
-        )}
-      </Card>
 
       {profile && !profile.onboardingCompleted ? (
         <Card variant="secondary" onPress={() => router.push('/profile/edit')} accessibilityLabel="Profil vervollständigen" style={styles.hint}>
@@ -166,6 +119,23 @@ export default function Home() {
       )}
       {starting ? <AppText tone="secondary">Training wird vorbereitet …</AppText> : null}
       {startError ? <AppText tone="error" accessibilityRole="alert">{startError}</AppText> : null}
+
+      <Card
+        style={styles.levelCard}
+        onPress={() => router.push('/progress')}
+        accessibilityLabel={`Rang ${rank.name}, Level ${level.level}, ${level.totalXp} XP gesamt, noch ${level.xpRemaining} XP bis Level ${level.level + 1}`}
+        accessibilityHint="Öffnet die XP- und Rangübersicht">
+        <View style={styles.levelRow}>
+          <LevelBadge level={level.level} />
+          <View style={styles.flex}>
+            <AppText variant="caption" tone="accent">RANG</AppText>
+            <AppText variant="heading">{rank.name}</AppText>
+            <AppText variant="small" tone="secondary">{nextRank ? `Nächster Rang: ${nextRank.name} ab Level ${nextRank.minLevel}` : 'Höchster Rang erreicht'}</AppText>
+          </View>
+        </View>
+        <XPBar progress={level} />
+      </Card>
+
 
       <SectionHeader title="Diese Woche" actionLabel="Dein Fortschritt" onAction={() => router.push('/report')} />
       <Card
@@ -212,12 +182,7 @@ export default function Home() {
         </View>
       </Card>
 
-      <View style={styles.quick}>
-        <Button label="Training starten" icon={Play} onPress={start} loading={starting} style={styles.quickBtn} accessibilityHint="Startet die nächste geplante Einheit" />
-        <Button label="Trainingsplan" icon={CalendarDays} variant="secondary" onPress={() => router.push('/training')} style={styles.quickBtn} accessibilityLabel="Trainingsplan ansehen" />
-      </View>
-
-      <SectionHeader title="Aktive Quests" actionLabel="Alle Quests" onAction={() => router.push('/quests')} />
+       <SectionHeader title="Nächste Quest" actionLabel="Alle Quests" onAction={() => router.push('/quests')} />
       {activeQuests.length > 0 ? (
         <View style={styles.gap}>
           {activeQuests.map((q) => (
@@ -231,17 +196,6 @@ export default function Home() {
         </Card>
       )}
 
-      <SectionHeader title="Letzte Achievements" actionLabel="Alle ansehen" onAction={() => router.push('/quests')} />
-      {achievements.length > 0 ? (
-        <View style={styles.achievements}>
-          {achievements.map((a) => <AchievementCard key={a.id} achievement={a} />)}
-        </View>
-      ) : (
-        <Card variant="secondary" style={styles.hint}>
-          <Dumbbell size={20} color={colors.textSecondary} />
-          <AppText tone="secondary" style={styles.flex}>Schließe dein erstes Training ab, um dein erstes Achievement zu erhalten.</AppText>
-        </Card>
-      )}
     </Screen>
   );
 }
@@ -249,8 +203,6 @@ export default function Home() {
 const styles = StyleSheet.create({
   header: { gap: 4 },
   bold: { fontWeight: '700' },
-  recent: { gap: 6, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md },
-  recentRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   flex: { flex: 1 },
   gap: { gap: spacing.md },
   levelCard: { gap: spacing.lg },
@@ -265,7 +217,4 @@ const styles = StyleSheet.create({
   dayMissed: { borderColor: colors.warning },
   dayDone: { backgroundColor: colors.accent, borderColor: colors.accent },
   dayToday: { transform: [{ scale: 1.15 }] },
-  quick: { flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap' },
-  quickBtn: { flexGrow: 1, flexBasis: 160 },
-  achievements: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
 });
