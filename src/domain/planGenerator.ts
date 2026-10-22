@@ -8,6 +8,7 @@ import type {
   Profile,
   TrainingPlan,
 } from './types';
+import { recommendPrescription } from './training/prescription';
 
 // Regelbasierte Trainingsplanerstellung – vollständig lokal, ohne externe KI-API.
 
@@ -144,30 +145,16 @@ export function pickExercise(
 }
 
 export function prescribe(exercise: Exercise, profile: Profile): PlannedExercise {
-  const { goal, experience } = profile;
-  const isCompound = exercise.category === 'compound';
-  let sets = experience === 'beginner' ? (isCompound ? 3 : 2) : experience === 'advanced' && isCompound ? 4 : 3;
-
-  if (exercise.measurement === 'time') {
-    const durationSec = exercise.category === 'mobility' ? 45 : experience === 'beginner' ? 30 : experience === 'intermediate' ? 40 : 60;
-    if (exercise.category === 'mobility') sets = 2;
-    return { exerciseId: exercise.id, sets, repsMin: 0, repsMax: 0, durationSec, restSec: 30 };
-  }
-
-  let repsMin = 10;
-  let repsMax = 15;
-  let restSec = 75;
-  if (goal === 'strength' && isCompound) {
-    [repsMin, repsMax] = experience === 'beginner' ? [6, 8] : experience === 'intermediate' ? [4, 6] : [3, 5];
-    restSec = 150;
-  } else if (goal === 'strength' || goal === 'hypertrophy') {
-    [repsMin, repsMax] = isCompound ? [8, 12] : [10, 15];
-    restSec = isCompound ? 90 : 60;
-  } else if (exercise.category !== 'compound') {
-    restSec = 45;
-  }
-  if (exercise.category === 'core') restSec = 45;
-  return { exerciseId: exercise.id, sets, repsMin, repsMax, restSec };
+  // Regeln in training/prescription.ts (Ziel, Übungstyp, Erfahrung, Häufigkeit, Alter, Einschränkungen).
+  const p = recommendPrescription(exercise, profile);
+  return {
+    exerciseId: exercise.id,
+    sets: p.sets,
+    repsMin: p.repsMin,
+    repsMax: p.repsMax,
+    ...(p.durationSec ? { durationSec: p.durationSec } : {}),
+    restSec: p.restSec,
+  };
 }
 
 /** Geschätzte Dauer in Minuten inkl. 5 Minuten Aufwärmen. */

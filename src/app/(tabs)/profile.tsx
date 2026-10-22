@@ -5,11 +5,19 @@ import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { AppText, Button, Card, Chip, ConfirmDialog, LevelBadge, Screen, SectionHeader } from '@/components';
 import { formatDate } from '@/domain/dates';
+import { currentAge, loadStepFor, LOAD_TYPE_LABELS } from '@/domain/training';
+import type { LoadType } from '@/domain/types';
 import { equipmentLabels, experienceLabels, goalLabels, limitationLabels } from '@/i18n/labels';
 import { useApp } from '@/state/AppProvider';
 import { colors, spacing } from '@/theme/tokens';
 
 const REST_OPTIONS: (number | null)[] = [null, 60, 90, 120, 180];
+const STEP_OPTIONS: Record<Exclude<LoadType, 'bodyweight'>, number[]> = {
+  barbell: [1, 2.5, 5],
+  dumbbell: [1, 2, 2.5],
+  machine: [2.5, 5, 10],
+  kettlebell: [2, 4, 8],
+};
 
 export default function Profile() {
   const app = useApp();
@@ -42,6 +50,9 @@ export default function Profile() {
     ['Equipment', profile.equipment.map((e) => equipmentLabels[e]).join(', ')],
     ['Einschränkungen', profile.limitations.length ? profile.limitations.map((l) => limitationLabels[l]).join(', ') : 'Keine'],
   ];
+  const age = currentAge(profile, new Date());
+  if (age != null) rows.push(['Alter', `${age} Jahre`]);
+  if (profile.heightCm) rows.push(['Größe', `${profile.heightCm.toLocaleString('de-DE')} cm`]);
   if (profile.bodyWeightKg) rows.push(['Körpergewicht', `${profile.bodyWeightKg.toLocaleString('de-DE')} kg`]);
 
   return (
@@ -100,6 +111,26 @@ export default function Profile() {
               />
             ))}
           </View>
+        </View>
+        <View style={[styles.rowStack, styles.divider]}>
+          <AppText>Gewichtsstufen</AppText>
+          <AppText variant="small" tone="secondary">Kleinster Schritt, um den du das Gewicht an deinen Geräten erhöhen kannst. Danach richten sich Empfehlungen und die Plus/Minus-Tasten.</AppText>
+          {(Object.keys(STEP_OPTIONS) as (keyof typeof STEP_OPTIONS)[]).map((type) => (
+            <View key={type} style={styles.stepRow}>
+              <AppText variant="small" style={styles.stepLabel}>{LOAD_TYPE_LABELS[type]}</AppText>
+              <View style={styles.chipsInline} accessibilityRole="radiogroup" accessibilityLabel={`Gewichtsstufe ${LOAD_TYPE_LABELS[type]}`}>
+                {STEP_OPTIONS[type].map((v) => (
+                  <Chip
+                    key={v}
+                    role="radio"
+                    label={`${v.toLocaleString('de-DE')} kg`}
+                    selected={loadStepFor(type, settings) === v}
+                    onPress={() => run(() => app.updateSettings({ loadSteps: { ...settings.loadSteps, [type]: v } }))}
+                  />
+                ))}
+              </View>
+            </View>
+          ))}
         </View>
       </Card>
 
@@ -161,6 +192,9 @@ const styles = StyleSheet.create({
   divider: { borderTopWidth: 1, borderTopColor: colors.border },
   actions: { flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
+  stepRow: { gap: spacing.xs, marginTop: spacing.xs },
+  stepLabel: { fontWeight: '600' },
+  chipsInline: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   syncCard: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
   disclaimer: { marginTop: spacing.lg },
 });

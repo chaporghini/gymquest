@@ -1,6 +1,6 @@
 import { addDays, isSameDay, startOfDay, startOfWeek, weekdayIndex } from './dates';
 import { sessionsInWeek } from './progression';
-import type { ActiveWorkout, PlanDay, SetLog, TrainingPlan, WorkoutSession } from './types';
+import type { ActiveWorkout, ExerciseFeedback, PlanDay, SetLog, TrainingPlan, WorkoutSession } from './types';
 import { calculateWorkoutXp, type WorkoutXpBreakdown } from './xp';
 
 export interface NextSession {
@@ -30,7 +30,17 @@ export function getNextSession(plan: TrainingPlan | null, sessions: WorkoutSessi
   return { day: first, date: addDays(weekStart, 7 + first.weekday), isToday: false, nextWeek: true };
 }
 
-export function createActiveWorkout(day: PlanDay, id: string, now: Date, lastSets: Record<string, SetLog[]> = {}): ActiveWorkout {
+/**
+ * `suggestedLoads`: empfohlene Gewichte je Übung (aus recommendExerciseLoad). Ohne Empfehlung
+ * wird das Gewicht vom letzten Mal vorgeschlagen.
+ */
+export function createActiveWorkout(
+  day: PlanDay,
+  id: string,
+  now: Date,
+  lastSets: Record<string, SetLog[]> = {},
+  suggestedLoads: Record<string, number | null | undefined> = {},
+): ActiveWorkout {
   return {
     id,
     planDayId: day.id,
@@ -40,6 +50,7 @@ export function createActiveWorkout(day: PlanDay, id: string, now: Date, lastSet
     restEndsAt: null,
     exercises: day.exercises.map((pe) => {
       const previous = lastSets[pe.exerciseId] ?? [];
+      const suggested = suggestedLoads[pe.exerciseId];
       return {
         exerciseId: pe.exerciseId,
         restSec: pe.restSec,
@@ -51,7 +62,7 @@ export function createActiveWorkout(day: PlanDay, id: string, now: Date, lastSet
           setIndex: i,
           // Werte vom letzten Mal vorschlagen, sonst Ziel-Wiederholungen
           reps: pe.durationSec ? null : (previous[i]?.reps ?? pe.repsMax),
-          weightKg: previous[i]?.weightKg ?? null,
+          weightKg: suggested ?? previous[i]?.weightKg ?? null,
           durationSec: pe.durationSec ?? null,
           completed: false,
         })),
@@ -87,9 +98,18 @@ export function finishWorkout(
       durationSec,
       xpEarned: xp.total,
       sets: sets.filter((s) => s.completed),
+      feedback: collectFeedback(workout),
+      readiness: workout.readiness ?? null,
     },
     xp,
   };
+}
+
+function collectFeedback(workout: ActiveWorkout): ExerciseFeedback[] | undefined {
+  const list = workout.exercises
+    .filter((e) => e.feedback && (e.feedback.effort || e.feedback.pain || e.feedback.techniqueUnsure) && e.sets.some((s) => s.completed))
+    .map((e) => ({ exerciseId: e.exerciseId, ...e.feedback }));
+  return list.length ? list : undefined;
 }
 
 /** Letzte protokollierte Sätze je Übung, um Vorschläge für das nächste Training zu machen. */

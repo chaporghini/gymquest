@@ -7,7 +7,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card, ProgressBar, Screen } from '@/components';
 import { DEFAULT_PROFILE_FORM, profileFormSchema, type ProfileForm } from '@/domain/profileSchema';
-import { EquipmentField, ExperienceField, GoalField, LimitationFields, NameField, ScheduleFields } from '@/features/ProfileFields';
+import { BodyFields, EquipmentField, ExperienceField, GoalField, LimitationFields, NameField, ScheduleFields } from '@/features/ProfileFields';
 import { equipmentLabels, experienceLabels, goalLabels, limitationLabels } from '@/i18n/labels';
 import { useApp } from '@/state/AppProvider';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -24,7 +24,8 @@ const STEPS: Step[] = [
   { title: 'Dein Ziel', subtitle: 'Bestimmt Wiederholungen, Pausen und Übungsauswahl.', fields: ['goal'] },
   { title: 'Dein Wochenrhythmus', subtitle: 'Wir planen Erholungstage automatisch ein.', fields: ['daysPerWeek', 'sessionMinutes'] },
   { title: 'Dein Equipment', subtitle: 'Was steht dir beim Training zur Verfügung?', fields: ['equipment'] },
-  { title: 'Rücksicht nehmen', subtitle: 'Alles auf dieser Seite ist freiwillig.', fields: ['limitations', 'excludedExerciseIds', 'notes', 'bodyWeightKg'] },
+  { title: 'Rücksicht nehmen', subtitle: 'Alles auf dieser Seite ist freiwillig.', fields: ['limitations', 'excludedExerciseIds', 'notes'] },
+  { title: 'Über dich', subtitle: 'Hilft uns, Empfehlungen sicher zu halten.', fields: ['ageYears', 'heightCm', 'bodyWeightKg'] },
   { title: 'Bereit für die erste Quest', subtitle: 'Prüfe deine Angaben. Du kannst alles später im Profil ändern.', fields: [] },
 ];
 
@@ -127,7 +128,8 @@ export default function Onboarding() {
       {step === 3 && <ScheduleFields {...fieldProps} />}
       {step === 4 && <EquipmentField {...fieldProps} />}
       {step === 5 && <LimitationFields {...fieldProps} />}
-      {step === 6 && (
+      {step === 6 && <BodyFields {...fieldProps} />}
+      {step === 7 && (
         <Card style={styles.summary}>
           <SummaryRow label="Name" value={values.displayName.trim() || 'Abenteurer'} />
           <SummaryRow label="Erfahrung" value={experienceLabels[values.experience]} />
@@ -135,6 +137,7 @@ export default function Onboarding() {
           <SummaryRow label="Rhythmus" value={`${values.daysPerWeek} Tage · ${values.sessionMinutes} min`} />
           <SummaryRow label="Equipment" value={values.equipment.map((e) => equipmentLabels[e]).join(', ')} />
           <SummaryRow label="Einschränkungen" value={values.limitations.length ? values.limitations.map((l) => limitationLabels[l]).join(', ') : 'Keine'} />
+          {values.ageYears ? <SummaryRow label="Alter" value={`${values.ageYears} Jahre`} /> : null}
           {values.excludedExerciseIds.length > 0 ? <SummaryRow label="Ausgeschlossen" value={`${values.excludedExerciseIds.length} Übungen`} /> : null}
         </Card>
       )}

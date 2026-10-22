@@ -2,16 +2,29 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { SearchX, TriangleAlert } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 
-import { AppText, Card, EmptyState, Screen } from '@/components';
+import { useMemo, useState } from 'react';
+
+import { AppText, Button, Card, EmptyState, Screen, Stepper } from '@/components';
 import { getExercise } from '@/data/exercises';
 import { categoryLabels, difficultyLabels, equipmentLabels, limitationLabels, muscleLabels } from '@/i18n/labels';
+import { recommendExerciseLoad } from '@/domain/training';
+import { RecommendationCard } from '@/features/RecommendationCard';
 import { useApp } from '@/state/AppProvider';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 export default function ExerciseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { profile } = useApp();
+  const { profile, sessions, settings, saveKnownLoad } = useApp();
   const exercise = getExercise(id);
+  const known = profile?.knownLoads?.find((k) => k.exerciseId === id);
+  const [knownWeight, setKnownWeight] = useState<number | null>(known?.weightKg ?? null);
+  const [knownReps, setKnownReps] = useState<number | null>(known?.reps ?? null);
+  const [saved, setSaved] = useState(false);
+  const recommendation = useMemo(
+    () => (exercise && profile ? recommendExerciseLoad(profile, exercise, sessions, { settings }) : null),
+    [exercise, profile, sessions, settings],
+  );
+  const hasHistory = (recommendation?.basedOnTrainingSessionIds.length ?? 0) > 0;
 
   if (!exercise) {
     return (
@@ -42,6 +55,40 @@ export default function ExerciseDetail() {
           <AppText style={styles.flex}>
             Diese Übung belastet {conflicts.map((c) => limitationLabels[c]).join(' und ')} – laut deinem Profil solltest du hier vorsichtig sein.
           </AppText>
+        </Card>
+      ) : null}
+
+      {recommendation ? (
+        <View style={styles.gap}>
+          <AppText variant="heading">Empfehlung fürs nächste Mal</AppText>
+          <RecommendationCard recommendation={recommendation} />
+        </View>
+      ) : null}
+
+      {exercise.usesWeight && !hasHistory ? (
+        <Card style={styles.gap}>
+          <AppText variant="heading">Bekannte Leistung (optional)</AppText>
+          <AppText variant="small" tone="secondary">
+            Weißt du, mit welchem Gewicht du diese Übung zuletzt sauber geschafft hast? Dann starten wir etwas darunter. Sobald du die Übung in GYMQUEST trainierst, zählt nur noch dein Protokoll.
+          </AppText>
+          <View style={styles.row}>
+            <View style={styles.flex}><Stepper label="Gewicht" unit="kg" compact value={knownWeight} onChange={(v) => { setKnownWeight(v); setSaved(false); }} step={recommendation?.loadStepKg ?? 2.5} max={500} decimals /></View>
+            <View style={styles.flex}><Stepper label="Wdh." compact value={knownReps} onChange={(v) => { setKnownReps(v); setSaved(false); }} max={50} /></View>
+          </View>
+          <View style={styles.row}>
+            <Button
+              label={saved ? 'Gespeichert' : 'Speichern'}
+              size="sm"
+              disabled={!knownWeight || !knownReps}
+              onPress={async () => {
+                if (knownWeight && knownReps) await saveKnownLoad(exercise.id, { weightKg: knownWeight, reps: knownReps });
+                setSaved(true);
+              }}
+            />
+            {known ? (
+              <Button label="Entfernen" size="sm" variant="ghost" onPress={async () => { await saveKnownLoad(exercise.id, null); setKnownWeight(null); setKnownReps(null); }} />
+            ) : null}
+          </View>
         </Card>
       ) : null}
 
@@ -88,6 +135,7 @@ const styles = StyleSheet.create({
   stepNo: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   bold: { fontWeight: '700' },
   flex: { flex: 1 },
+  row: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-end' },
   info: { flexDirection: 'row', gap: spacing.md },
   infoLabel: { width: 130 },
 });

@@ -25,6 +25,19 @@ export const profileFormSchema = z.object({
     .max(300, 'Bitte einen realistischen Wert eingeben.')
     .nullable()
     .optional(),
+  ageYears: z
+    .number()
+    .int('Bitte ganze Jahre angeben.')
+    .min(12, 'GYMQUEST ist ab 12 Jahren gedacht.')
+    .max(100, 'Bitte einen realistischen Wert eingeben.')
+    .nullable()
+    .optional(),
+  heightCm: z
+    .number()
+    .min(100, 'Bitte einen realistischen Wert eingeben.')
+    .max(250, 'Bitte einen realistischen Wert eingeben.')
+    .nullable()
+    .optional(),
 });
 
 export type ProfileForm = z.infer<typeof profileFormSchema>;
@@ -40,15 +53,46 @@ export const DEFAULT_PROFILE_FORM: ProfileForm = {
   excludedExerciseIds: [],
   notes: '',
   bodyWeightKg: null,
+  ageYears: null,
+  heightCm: null,
 };
 
-export function profileFromForm(form: ProfileForm, createdAt: string, onboardingCompleted = true): Profile {
+/**
+ * Baut das Profil aus dem Formular. Felder, die das Formular nicht kennt (Gewichtsverlauf,
+ * bekannte Leistungen), werden aus `previous` übernommen.
+ */
+export function profileFromForm(form: ProfileForm, createdAt: string, onboardingCompleted = true, previous: Profile | null = null, now = new Date()): Profile {
+  const ageYears = form.ageYears ?? null;
+  // Das Alter wird mit Datum gespeichert, damit es sich später von selbst fortschreibt.
+  const ageRecordedAt = ageYears == null ? null : previous?.ageYears === ageYears && previous.ageRecordedAt ? previous.ageRecordedAt : now.toISOString();
   return {
+    ...previous,
     ...form,
     displayName: form.displayName.trim() || 'Abenteurer',
     notes: form.notes?.trim() || undefined,
     bodyWeightKg: form.bodyWeightKg ?? null,
+    heightCm: form.heightCm ?? null,
+    ageYears,
+    ageRecordedAt,
     onboardingCompleted,
     createdAt,
+  };
+}
+
+/** Formularwerte aus einem gespeicherten Profil. Das Alter wird dabei fortgeschrieben. */
+export function formFromProfile(profile: Profile, ageNow: number | null): ProfileForm {
+  return {
+    displayName: profile.displayName,
+    experience: profile.experience,
+    goal: profile.goal,
+    daysPerWeek: profile.daysPerWeek,
+    sessionMinutes: profile.sessionMinutes,
+    equipment: profile.equipment,
+    limitations: profile.limitations,
+    excludedExerciseIds: profile.excludedExerciseIds,
+    notes: profile.notes ?? '',
+    bodyWeightKg: profile.bodyWeightKg ?? null,
+    ageYears: ageNow,
+    heightCm: profile.heightCm ?? null,
   };
 }

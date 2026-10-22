@@ -1,40 +1,55 @@
 import { router } from 'expo-router';
-import { Activity, ChevronRight, Clock, Dumbbell, Flame, History } from 'lucide-react-native';
+import { Activity, ChevronRight, Clock, Dumbbell, Flame, History, TrendingUp } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { BarChart } from 'react-native-gifted-charts';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Card, Chip, EmptyState, Screen, SectionHeader, StatCard } from '@/components';
 import { getExercise } from '@/data/exercises';
-import { addDays, formatDate, formatDuration, startOfWeek } from '@/domain/dates';
-import { sessionsInWeek, weeklyStreak } from '@/domain/progression';
+import { addDays, formatDate, formatDuration } from '@/domain/dates';
+import { weeklyStreak } from '@/domain/progression';
+import { bodyWeightSeries, exerciseSeries, monthlySeries, periodLabel, trainedExercises, weeklySeries, xpSeries, type ExerciseMetric } from '@/domain/training';
 import { totalVolumeKg } from '@/domain/xp';
+import { Bars, ChartCard, Line } from '@/features/ChartCard';
 import { useApp } from '@/state/AppProvider';
 import { colors, spacing } from '@/theme/tokens';
 
-type Metric = 'workouts' | 'sets' | 'minutes';
-const METRIC_LABELS: Record<Metric, string> = { workouts: 'Trainings', sets: 'Sätze', minutes: 'Minuten' };
+type WeekMetric = 'workouts' | 'sets' | 'minutes';
+const WEEK_METRICS: Record<WeekMetric, { label: string; title: string; unit: string }> = {
+  workouts: { label: 'Trainings', title: 'Trainings pro Woche', unit: 'Anzahl Trainings' },
+  sets: { label: 'Sätze', title: 'Arbeitssätze pro Woche', unit: 'Anzahl Sätze' },
+  minutes: { label: 'Dauer', title: 'Trainingsdauer pro Woche', unit: 'Minuten' },
+};
+type MonthMetric = 'workouts' | 'minutes';
+const MONTH_METRICS: Record<MonthMetric, { label: string; title: string; unit: string }> = {
+  workouts: { label: 'Trainings', title: 'Trainings pro Monat', unit: 'Anzahl Trainings' },
+  minutes: { label: 'Dauer', title: 'Trainingsdauer pro Monat', unit: 'Minuten' },
+};
+const EXERCISE_METRICS: Record<ExerciseMetric, { label: string; unit: string }> = {
+  weight: { label: 'Gewicht', unit: 'kg (Arbeitsgewicht)' },
+  reps: { label: 'Wiederholungen', unit: 'beste Wdh. pro Satz' },
+  duration: { label: 'Dauer', unit: 'Sekunden (beste Haltezeit)' },
+};
 const WEEKS = 8;
+const MONTHS = 6;
+const XP_WEEKS = 12;
 
 export default function Stats() {
-  const { sessions, plan } = useApp();
-  const [metric, setMetric] = useState<Metric>('sets');
-  const [chartWidth, setChartWidth] = useState(0);
+  const { sessions, plan, xpEvents, profile } = useApp();
+  const now = useMemo(() => new Date(), [sessions, xpEvents, profile]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [weekMetric, setWeekMetric] = useState<WeekMetric>('workouts');
+  const [monthMetric, setMonthMetric] = useState<MonthMetric>('minutes');
   const [selected, setSelected] = useState<number | null>(null);
+  const [exerciseId, setExerciseId] = useState<string | null>(null);
+  const [exerciseMetric, setExerciseMetric] = useState<ExerciseMetric | null>(null);
 
-  const weekly = useMemo(() => {
-    const thisWeek = startOfWeek(new Date());
-    return Array.from({ length: WEEKS }, (_, i) => {
-      const start = addDays(thisWeek, -7 * (WEEKS - 1 - i));
-      const list = sessionsInWeek(sessions, start);
-      return {
-        start,
-        workouts: list.length,
-        sets: list.reduce((n, s) => n + s.sets.length, 0),
-        minutes: Math.round(list.reduce((n, s) => n + s.durationSec, 0) / 60),
-      };
-    });
-  }, [sessions]);
+  const weekly = useMemo(() => weeklySeries(sessions, now, WEEKS), [sessions, now]);
+  const monthly = useMemo(() => monthlySeries(sessions, now, MONTHS), [sessions, now]);
+  const exercises = useMemo(() => trainedExercises(sessions), [sessions]);
+  const chosen = exercises.find((e) => e.id === exerciseId) ?? exercises[0];
+  const metric = chosen && exerciseMetric && chosen.metrics.includes(exerciseMetric) ? exerciseMetric : chosen?.metrics[0] ?? 'reps';
+  const exercisePoints = useMemo(() => (chosen ? exerciseSeries(sessions, chosen.id, metric) : []), [sessions, chosen, metric]);
+  const xp = useMemo(() => xpSeries(xpEvents, now, XP_WEEKS), [xpEvents, now]);
+  const bodyWeight = useMemo(() => bodyWeightSeries(profile), [profile]);
 
   const records = useMemo(() => {
     const best = new Map<string, { weight: number; reps: number }>();
@@ -52,16 +67,11 @@ export default function Stats() {
 
   const totalSets = sessions.reduce((n, s) => n + s.sets.length, 0);
   const totalTime = sessions.reduce((n, s) => n + s.durationSec, 0);
-  const streak = weeklyStreak(sessions, plan, new Date());
-
-  const data = weekly.map((w, i) => ({
-    value: w[metric],
-    label: `${String(w.start.getDate()).padStart(2, '0')}.${String(w.start.getMonth() + 1).padStart(2, '0')}`,
-    frontColor: selected === i ? colors.text : colors.accent,
-    onPress: () => setSelected(i === selected ? null : i),
-  }));
-  const maxValue = Math.max(4, ...weekly.map((w) => w[metric]));
+  const streak = weeklyStreak(sessions, plan, now);
   const sel = selected !== null ? weekly[selected] : null;
+  const weekPeriod = periodLabel(weekly[0].start, addDays(weekly[WEEKS - 1].start, 6));
+  const xpLevelStart = xp[0].level;
+  const xpLevelEnd = xp[xp.length - 1].level;
 
   return (
     <Screen>
@@ -75,48 +85,114 @@ export default function Stats() {
       </View>
       <StatCard label="Bewegtes Gewicht" value={`${totalVolumeKg(sessions).toLocaleString('de-DE')} kg`} hint="Summe aus Gewicht × Wiederholungen" />
 
-      <SectionHeader title="Verlauf der letzten 8 Wochen" />
-      <View style={styles.chips} accessibilityRole="radiogroup">
-        {(Object.keys(METRIC_LABELS) as Metric[]).map((m) => (
-          <Chip key={m} role="radio" label={METRIC_LABELS[m]} selected={metric === m} onPress={() => setMetric(m)} />
-        ))}
-      </View>
-      <Card style={styles.chartCard}>
-        <AppText variant="small" tone="secondary" accessibilityLiveRegion="polite">
-          {sel
-            ? `Woche ab ${String(sel.start.getDate()).padStart(2, '0')}.${String(sel.start.getMonth() + 1).padStart(2, '0')}.: ${sel[metric]} ${METRIC_LABELS[metric]}`
-            : `${METRIC_LABELS[metric]} pro Woche – tippe auf einen Balken für Details.`}
-        </AppText>
-        <View
-          onLayout={(e) => setChartWidth(e.nativeEvent.layout.width)}
-          accessible
-          accessibilityLabel={`Balkendiagramm ${METRIC_LABELS[metric]} pro Woche: ${weekly.map((w) => w[metric]).join(', ')}`}>
-          {chartWidth > 0 ? (
-            <BarChart
-              data={data}
-              width={chartWidth - 40}
-              height={160}
-              barWidth={Math.max(12, (chartWidth - 40) / WEEKS - 14)}
-              spacing={12}
-              initialSpacing={8}
-              endSpacing={4}
-              maxValue={maxValue}
-              noOfSections={4}
-              barBorderRadius={4}
-              yAxisThickness={0}
-              xAxisThickness={1}
-              xAxisColor={colors.border}
-              rulesColor={colors.border}
-              rulesType="solid"
-              yAxisTextStyle={{ color: colors.textSecondary, fontSize: 11 }}
-              xAxisLabelTextStyle={{ color: colors.textSecondary, fontSize: 10 }}
-              yAxisLabelWidth={32}
-              disableScroll
-              isAnimated
-            />
-          ) : null}
+      <Card variant="highlight" onPress={() => router.push('/report')} accessibilityLabel="Dein Fortschritt: Wochen- und Monatsbericht öffnen" style={styles.reportLink}>
+        <TrendingUp size={22} color={colors.accent} />
+        <View style={styles.flex}>
+          <AppText variant="bodyStrong">Dein Fortschritt</AppText>
+          <AppText variant="small" tone="secondary">Wochen- und Monatsbericht mit deinem nächsten Schritt</AppText>
         </View>
+        <ChevronRight size={18} color={colors.textSecondary} />
       </Card>
+
+      <SectionHeader title="Verlauf" />
+      <ChartCard
+        title={WEEK_METRICS[weekMetric].title}
+        period={`Letzte ${WEEKS} Wochen (${weekPeriod})`}
+        unit={WEEK_METRICS[weekMetric].unit}
+        empty={sessions.length === 0 ? 'Noch keine Trainings. Nach deinem ersten Training erscheint hier der Wochenverlauf.' : null}
+        summary={weekly.map((w) => `Woche ab ${w.label}: ${w[weekMetric]}`).join(', ')}
+        footnote={sel ? `Woche ab ${sel.label}.: ${sel[weekMetric]} ${WEEK_METRICS[weekMetric].unit}` : 'Heller Balken: laufende Woche. Tippe auf einen Balken für den Wert.'}
+        controls={
+          <View style={styles.chips} accessibilityRole="radiogroup">
+            {(Object.keys(WEEK_METRICS) as WeekMetric[]).map((m) => (
+              <Chip key={m} role="radio" label={WEEK_METRICS[m].label} selected={weekMetric === m} onPress={() => setWeekMetric(m)} />
+            ))}
+          </View>
+        }>
+        {(width) => (
+          <Bars
+            width={width}
+            data={weekly.map((w, i) => ({ value: w[weekMetric], label: w.label, muted: w.running, selected: selected === i, onPress: () => setSelected(i === selected ? null : i) }))}
+          />
+        )}
+      </ChartCard>
+
+      <ChartCard
+        title={MONTH_METRICS[monthMetric].title}
+        period={`Letzte ${MONTHS} Monate (${monthly[0].label} – ${monthly[MONTHS - 1].label} ${now.getFullYear()})`}
+        unit={MONTH_METRICS[monthMetric].unit}
+        empty={sessions.length === 0 ? 'Noch keine Trainings. Der Monatsverlauf füllt sich mit jedem Training.' : null}
+        summary={monthly.map((m) => `${m.label}: ${m[monthMetric]}`).join(', ')}
+        footnote={`Heller Balken: ${monthly[MONTHS - 1].label} läuft noch (bis heute).`}
+        controls={
+          <View style={styles.chips} accessibilityRole="radiogroup">
+            {(Object.keys(MONTH_METRICS) as MonthMetric[]).map((m) => (
+              <Chip key={m} role="radio" label={MONTH_METRICS[m].label} selected={monthMetric === m} onPress={() => setMonthMetric(m)} />
+            ))}
+          </View>
+        }>
+        {(width) => <Bars width={width} data={monthly.map((m) => ({ value: m[monthMetric], label: m.label, muted: m.running }))} />}
+      </ChartCard>
+
+      <ChartCard
+        title={chosen ? `Übung: ${chosen.name}` : 'Übungsverlauf'}
+        period={exercisePoints.length ? `${exercisePoints.length} Einheiten (${exercisePoints[0].label} – ${exercisePoints[exercisePoints.length - 1].label})` : 'Alle Einheiten'}
+        unit={EXERCISE_METRICS[metric].unit}
+        empty={
+          !chosen
+            ? 'Noch keine Übung protokolliert. Nach deinem ersten Training kannst du hier jede Übung einzeln verfolgen.'
+            : exercisePoints.length < 2
+              ? 'Ab zwei Einheiten dieser Übung siehst du hier einen Verlauf.'
+              : null
+        }
+        summary={exercisePoints.map((p) => `${p.label}: ${p.value}`).join(', ')}
+        footnote="Jede Übung wird nur mit sich selbst verglichen."
+        controls={
+          chosen ? (
+            <View style={styles.gapSm}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.noGrow} contentContainerStyle={styles.chips}>
+                {exercises.map((e) => (
+                  <Chip key={e.id} role="radio" label={e.name} selected={chosen.id === e.id} onPress={() => setExerciseId(e.id)} />
+                ))}
+              </ScrollView>
+              {chosen.metrics.length > 1 ? (
+                <View style={styles.chips} accessibilityRole="radiogroup">
+                  {chosen.metrics.map((m) => (
+                    <Chip key={m} role="radio" label={EXERCISE_METRICS[m].label} selected={metric === m} onPress={() => setExerciseMetric(m)} />
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : null
+        }>
+        {(width) => <Line width={width} data={exercisePoints} fromZero={metric !== 'weight'} />}
+      </ChartCard>
+
+      <ChartCard
+        title="XP und Level"
+        period={`Letzte ${XP_WEEKS} Wochen, Stand am Wochenende`}
+        unit="XP gesamt"
+        empty={xpEvents.length === 0 ? 'Noch keine XP. Schließe ein Training ab, dann siehst du hier deinen Aufstieg.' : null}
+        summary={xp.map((x) => `${x.label}: ${x.totalXp} XP, Level ${x.level}`).join(', ')}
+        footnote={xpLevelStart === xpLevelEnd ? `Level ${xpLevelEnd} im ganzen Zeitraum.` : `Level ${xpLevelStart} → ${xpLevelEnd} in diesem Zeitraum.`}>
+        {(width) => <Line width={width} data={xp.map((x) => ({ value: x.totalXp, label: x.label }))} />}
+      </ChartCard>
+
+      <ChartCard
+        title="Körpergewicht"
+        period={bodyWeight.length ? `${bodyWeight.length} Einträge (${bodyWeight[0].label} – ${bodyWeight[bodyWeight.length - 1].label})` : 'Alle Einträge'}
+        unit="kg"
+        empty={
+          bodyWeight.length === 0
+            ? 'Optional: Trag dein Gewicht unter Profil → Profil bearbeiten ein. Jede Änderung erscheint hier mit Datum.'
+            : bodyWeight.length < 2
+              ? `Bisher ein Eintrag (${bodyWeight[0].value.toLocaleString('de-DE')} kg am ${bodyWeight[0].label}). Ab zwei Einträgen siehst du einen Verlauf.`
+              : null
+        }
+        summary={bodyWeight.map((p) => `${p.label}: ${p.value} kg`).join(', ')}
+        footnote="Nur deine Einträge, ohne Bewertung.">
+        {(width) => <Line width={width} data={bodyWeight} fromZero={false} />}
+      </ChartCard>
 
       {records.length > 0 ? (
         <>
@@ -163,7 +239,9 @@ export default function Stats() {
 const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   chips: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
-  chartCard: { gap: spacing.md, overflow: 'hidden' },
+  noGrow: { flexGrow: 0 },
+  gapSm: { gap: spacing.sm },
+  reportLink: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   flex: { flex: 1, gap: 2 },
   bold: { fontWeight: '700' },
   recordRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },

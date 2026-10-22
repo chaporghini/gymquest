@@ -157,6 +157,52 @@ describe('Cloud-Synchronisierung', () => {
     expect((remote.rows.get('plan|main')?.data as TrainingPlan).name).toBe('Neuer (Mac)');
   });
 
+  it('führt den Gewichtsverlauf beider Geräte zusammen und überträgt Feedback zum Training', async () => {
+    const remote = new FakeRemote();
+    const mac = device();
+    const phone = device();
+    const entry = (id: string, value: number, at: string) => ({ id, kind: 'weight' as const, value, recordedAt: at });
+    await mac.app.saveProfile({ ...profile('Luis'), bodyWeightKg: 80, bodyLog: { entries: [entry('w1', 80, '2026-10-01T08:00:00.000Z')] } });
+    await syncOnce(mac.inner, remote, 'u');
+    await syncOnce(phone.inner, remote, 'u');
+
+    // Offline auf beiden Geräten gewogen; das iPhone speichert zuletzt.
+    await mac.app.saveProfile({ ...profile('Luis'), bodyWeightKg: 79, bodyLog: { entries: [entry('w1', 80, '2026-10-01T08:00:00.000Z'), entry('w2', 79, '2026-10-05T08:00:00.000Z')] } });
+    await new Promise((r) => setTimeout(r, 5));
+    await phone.app.saveProfile({ ...profile('Luis'), bodyWeightKg: 78.5, bodyLog: { entries: [entry('w1', 80, '2026-10-01T08:00:00.000Z'), entry('w3', 78.5, '2026-10-06T08:00:00.000Z')] } });
+    await phone.app.saveSession({ ...session('s9', '2026-10-06T10:00:00.000Z'), feedback: [{ exerciseId: 'squat', effort: 'hard', pain: true }], readiness: 4 }, []);
+    await syncOnce(phone.inner, remote, 'u');
+    await syncOnce(mac.inner, remote, 'u');
+    await syncOnce(phone.inner, remote, 'u');
+
+    for (const d of [mac, phone]) {
+      const p = await d.inner.getProfile();
+      expect(p?.bodyLog?.entries.map((e) => e.id)).toEqual(['w1', 'w2', 'w3']);
+      expect(p?.bodyWeightKg).toBe(78.5);
+    }
+    expect((remote.rows.get('profile|main')?.data as Profile).bodyLog?.entries).toHaveLength(3);
+    const synced = (await mac.inner.listSessions()).find((s) => s.id === 's9');
+    expect(synced?.feedback).toEqual([{ exerciseId: 'squat', effort: 'hard', pain: true }]);
+    expect(synced?.readiness).toBe(4);
+  });
+
+  it('löscht Körperdaten auf allen Geräten', async () => {
+    const remote = new FakeRemote();
+    const mac = device();
+    const phone = device();
+    await mac.app.saveProfile({ ...profile('Luis'), bodyWeightKg: 80, ageYears: 30, bodyLog: { entries: [{ id: 'w1', kind: 'weight', value: 80, recordedAt: '2026-10-01T08:00:00.000Z' }] } });
+    await syncOnce(mac.inner, remote, 'u');
+    await syncOnce(phone.inner, remote, 'u');
+    await new Promise((r) => setTimeout(r, 5));
+    await phone.app.saveProfile({ ...profile('Luis'), bodyWeightKg: null, ageYears: null, bodyLog: { entries: [], clearedAt: new Date().toISOString() } });
+    await syncOnce(phone.inner, remote, 'u');
+    await syncOnce(mac.inner, remote, 'u');
+    const p = await mac.inner.getProfile();
+    expect(p?.bodyLog?.entries).toEqual([]);
+    expect(p?.bodyWeightKg).toBeNull();
+    expect(p?.ageYears).toBeNull();
+  });
+
   it('behält Änderungen, wenn der Server nicht erreichbar ist, und lädt sie später hoch', async () => {
     const remote = new FakeRemote();
     const phone = device();

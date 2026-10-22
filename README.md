@@ -52,15 +52,20 @@ npm run lint      # ESLint
 
 ## Funktionen
 
-- **Onboarding** (überspringbar): Spielername, Erfahrung, Ziel, Tage/Woche, Trainingsdauer, Equipment, optionale Einschränkungen und Übungen, die vermieden werden sollen. Körpergewicht ist freiwillig.
+- **Onboarding** (überspringbar): Spielername, Erfahrung, Ziel, Tage/Woche, Trainingsdauer, Equipment, optionale Einschränkungen und Übungen, die vermieden werden sollen. Alter, Größe und Körpergewicht sind freiwillig (mit Erklärung, wofür sie genutzt werden; jederzeit änder- und löschbar).
 - **Automatischer Trainingsplan** über `generateTrainingPlan(profile, exerciseLibrary)` – regelbasiert, ohne KI-API. Berücksichtigt Erholungstage, Erfahrung (Anfänger bekommen max. 3 Krafttage, weitere Tage werden zu aktiver Erholung), Ziel (Wiederholungen/Pausen), Zeitbudget, Equipment und Einschränkungen.
 - **Home-Dashboard**: Begrüßung, Rang und Level, XP-Balken mit fehlenden XP, nächste Einheit mit geschätzter Dauer, Wochenfortschritt, aktive Quests, letzte Achievements, Schnellzugriffe.
 - **Trainingsplan**: Wochenübersicht mit Ruhetagen, Tage verschieben/hinzufügen/entfernen, Übungen tauschen, sortieren, Sätze/Wiederholungen/Pausen ändern.
 - **Geführter Trainingsmodus**: Satzprotokoll mit Wiederholungen und Gewicht (Vorschläge vom letzten Training), Pausentimer mit ±15 s und Überspringen, Display bleibt an, Vibration (iPhone). Das laufende Training wird bei jeder Eingabe gespeichert – es übersteht Tab-Wechsel, App-Wechsel und sogar einen Neustart. Ein Banner über der Tab-Leiste führt zurück.
 - **Übungsbibliothek**: 41 Übungen mit Anleitung, Tipps und Hinweisen zu Belastungen; Suche und Filter (Muskelgruppe, Art, eigenes Equipment).
 - **Quests, Achievements, Ränge**: 4 Wochenquests, 13 Achievements, 7 Ränge (Rekrut bis Legende), Level-up-Animation.
-- **Statistiken**: Kennzahlen, Diagramm der letzten 8 Wochen (Trainings, Sätze, Minuten), Bestleistungen, Trainingshistorie mit Details.
-- **Profil & Einstellungen**: Profil bearbeiten und Plan neu erstellen, haptisches Feedback, feste Pausenzeit, alle Daten löschen.
+- **Intelligentes Trainingssystem** (`src/domain/training/`, regelbasiert, ohne KI-API):
+  - `recommendPrescription`: Sätze, Wiederholungsbereich, Pause und Reserve (RIR) je Übung nach Ziel, Übungsart, Erfahrung, Trainingstagen und Alter.
+  - `recommendExerciseLoad`: Gewichtsempfehlung je Übung mit Status *ermitteln / beibehalten / kleine Steigerung / reduzieren / pausieren*, Begründung und Hinweisen. Grundlage ist nur die eigene Leistung bei genau dieser Übung (Körpergewicht/Größe werden nie umgerechnet). Steigerung erst am oberen Ende des Bereichs und bei passender Anstrengung, in den Gewichtsstufen des Geräts (einstellbar). Keine Steigerung bei Beschwerden, unsicherer Technik, schlechter Tagesform oder ungewöhnlich vielen Trainings; nach Pausen vorsichtiger Wiedereinstieg. Minderjährige und ab 65: zwei bestätigende Einheiten, mehr Reserve, keine Maximalversuche.
+  - Im Training: Empfehlung je Übung, vorbelegte Gewichte, Tagesform (1–5) und je Übung Anstrengung, „Technik unsicher“ und „Beschwerden“.
+  - `analyzeWeeklyProgress`, `analyzeMonthlyProgress`, `getExerciseProgress`, `detectPossiblePlateau`, `recommendNextWorkout`: Grundlage für **„Dein Fortschritt“** (Wochen- und Monatsbericht mit Vergleich zum gleichen Zeitraum des Vormonats, vorläufig gekennzeichnet, und „Dein nächster Schritt“).
+- **Statistiken**: Kennzahlen; Diagramme für Trainings/Sätze/Dauer pro Woche, Trainings/Dauer pro Monat, Verlauf je Übung (Gewicht oder Wiederholungen), XP und Level, Körpergewicht; Bestleistungen, Trainingshistorie mit Details.
+- **Profil & Einstellungen**: Profil bearbeiten und Plan neu erstellen, Körperdaten löschen, Gewichtsstufen je Gerät, haptisches Feedback, feste Pausenzeit, alle Daten löschen.
 - **Konto & Sync** (optional, Supabase): Registrieren/Anmelden mit E-Mail, automatischer Abgleich im Hintergrund, offline zuerst. Trainings und XP werden zusammengeführt, bei Profil/Einstellungen/Plan gewinnt der neuere Stand.
 - **Backup**: Export aller Daten als JSON-Datei, Einspielen ohne Datenverlust.
 - **Installierbar (PWA)**: App-Symbol, Vollbild, Start ohne Internet per Service Worker.
@@ -92,6 +97,7 @@ src/
 │   ├── planGenerator.ts generateTrainingPlan()
 │   ├── progression.ts   Wochenstatistik, Quests, Achievements, Belohnungen
 │   ├── workout.ts       Nächste Einheit, Trainingsablauf
+│   ├── training/        Empfehlungen, Berichte, Diagrammdaten, Körperdaten (Analyse-Service)
 │   └── profileSchema.ts Zod-Validierung für Onboarding/Profil
 ├── data/
 │   ├── exercises.ts     Übungsbibliothek

@@ -11,6 +11,7 @@ import { generateTrainingPlan } from '@/domain/planGenerator';
 import { DEFAULT_PROFILE_FORM, profileFromForm, type ProfileForm } from '@/domain/profileSchema';
 import { collectPendingRewards } from '@/domain/progression';
 import { getRank, type Rank } from '@/domain/ranks';
+import { clearBodyData, recommendationsForDay, withBodyChanges, type TrainingData } from '@/domain/training';
 import type { ActiveWorkout, Profile, Settings, TrainingPlan, WorkoutSession, XpEvent } from '@/domain/types';
 import { createActiveWorkout, finishWorkout, lastSetsByExercise } from '@/domain/workout';
 import { getLevelProgress, type LevelProgress, type WorkoutXpBreakdown } from '@/domain/xp';
@@ -43,6 +44,11 @@ interface AppContextValue {
   completeOnboarding: (form: ProfileForm) => Promise<void>;
   skipOnboarding: () => Promise<void>;
   updateProfile: (form: ProfileForm, regeneratePlan: boolean) => Promise<void>;
+  clearBodyData: () => Promise<void>;
+  /** Bekannte Leistung als Startpunkt für eine Übung speichern (null löscht sie). */
+  saveKnownLoad: (exerciseId: string, value: { weightKg: number; reps: number } | null) => Promise<void>;
+  /** Daten für den Analyse-Service (Berichte, Empfehlungen). */
+  trainingData: TrainingData;
   updateSettings: (patch: Partial<Settings>) => Promise<void>;
   savePlan: (plan: TrainingPlan) => Promise<void>;
   regeneratePlan: () => Promise<void>;
@@ -150,7 +156,8 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
   }, [repo]);
 
   const completeOnboarding = useCallback(async (form: ProfileForm) => {
-    const p = profileFromForm(form, new Date().toISOString(), true);
+    const now = new Date();
+    const p = withBodyChanges(null, profileFromForm(form, now.toISOString(), true, null, now), now, () => createId('body'));
     await repo.saveProfile(p);
     await createPlanFor(p);
     setProfile(p);
@@ -165,11 +172,30 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
   }, [repo, createPlanFor]);
 
   const updateProfile = useCallback(async (form: ProfileForm, regenerate: boolean) => {
-    const p = profileFromForm(form, profile?.createdAt ?? new Date().toISOString(), true);
+    const now = new Date();
+    const p = withBodyChanges(profile, profileFromForm(form, profile?.createdAt ?? now.toISOString(), true, profile, now), now, () => createId('body'));
     await repo.saveProfile(p);
     setProfile(p);
     if (regenerate || !plan) await createPlanFor(p);
   }, [repo, profile, plan, createPlanFor]);
+
+  const clearBody = useCallback(async () => {
+    if (!profile) return;
+    const p = clearBodyData(profile, new Date());
+    await repo.saveProfile(p);
+    setProfile(p);
+  }, [repo, profile]);
+
+  const saveKnownLoad = useCallback(async (exerciseId: string, value: { weightKg: number; reps: number } | null) => {
+    if (!profile) return;
+    const others = (profile.knownLoads ?? []).filter((k) => k.exerciseId !== exerciseId);
+    const knownLoads = value ? [...others, { exerciseId, ...value, recordedAt: new Date().toISOString() }] : others;
+    const p = { ...profile, knownLoads };
+    await repo.saveProfile(p);
+    setProfile(p);
+  }, [repo, profile]);
+
+  const trainingData = useMemo<TrainingData>(() => ({ profile, plan, sessions, xpEvents, settings }), [profile, plan, sessions, xpEvents, settings]);
 
   const updateSettings = useCallback(async (patch: Partial<Settings>) => {
     const next = { ...settings, ...patch };
@@ -198,11 +224,14 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
     const day = plan?.days.find((d) => d.id === planDayId);
     if (!day) throw new Error('Diese Trainingseinheit gibt es im Plan nicht mehr.');
     if (day.exercises.length === 0) throw new Error('Diese Einheit enthält noch keine Übungen.');
-    const workout = createActiveWorkout(day, createId('session'), new Date(), lastSetsByExercise(sessions));
+    const now = new Date();
+    const recs = recommendationsForDay(trainingData, day.id, now);
+    const suggested = Object.fromEntries(Object.entries(recs).map(([id, r]) => [id, r.suggestedLoadKg]));
+    const workout = createActiveWorkout(day, createId('session'), now, lastSetsByExercise(sessions), suggested);
     setActiveWorkout(workout);
     await persistActive(workout);
     return workout;
-  }, [plan, sessions, persistActive]);
+  }, [plan, sessions, trainingData, persistActive]);
 
   const updateActiveWorkout = useCallback((updater: (w: ActiveWorkout) => ActiveWorkout) => {
     const current = activeRef.current;
@@ -301,6 +330,9 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
     completeOnboarding,
     skipOnboarding,
     updateProfile,
+    clearBodyData: clearBody,
+    saveKnownLoad,
+    trainingData,
     updateSettings,
     savePlan,
     regeneratePlan,

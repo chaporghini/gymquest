@@ -60,16 +60,54 @@ export interface Profile {
   limitations: Limitation[];
   excludedExerciseIds: string[];
   notes?: string;
-  /** Optional, nie verpflichtend. */
+  /** Optional, nie verpflichtend. Aktueller Wert; der Verlauf steht in `bodyLog`. */
   bodyWeightKg?: number | null;
+  /** Optional. Statt eines Geburtsdatums wird nur das Alter mit Erfassungsdatum gespeichert (Datensparsamkeit). */
+  ageYears?: number | null;
+  ageRecordedAt?: string | null;
+  /** Optional, in Zentimetern. */
+  heightCm?: number | null;
+  /** Verlauf von Körpergewicht und -größe, jeweils mit Datum. */
+  bodyLog?: BodyLog;
+  /** Optional: bereits bekannte Arbeitsgewichte, z. B. aus einem früheren Training. */
+  knownLoads?: KnownLoad[];
   onboardingCompleted: boolean;
   createdAt: string;
 }
+
+export type BodyMetric = 'weight' | 'height';
+
+/** Ein Messwert mit Datum (WeightEntry bzw. HeightEntry). */
+export interface BodyEntry {
+  id: string;
+  kind: BodyMetric;
+  /** kg bei Gewicht, cm bei Größe */
+  value: number;
+  recordedAt: string;
+}
+
+export interface BodyLog {
+  entries: BodyEntry[];
+  /** Zeitpunkt, an dem der Nutzer alle Körperdaten gelöscht hat. Ältere Einträge anderer Geräte werden verworfen. */
+  clearedAt?: string | null;
+}
+
+export interface KnownLoad {
+  exerciseId: string;
+  weightKg: number;
+  reps: number;
+  recordedAt: string;
+}
+
+/** Art der Last, bestimmt sinnvolle Steigerungsschritte. */
+export type LoadType = 'barbell' | 'dumbbell' | 'machine' | 'kettlebell' | 'bodyweight';
 
 export interface Settings {
   hapticsEnabled: boolean;
   defaultRestSeconds: number | null; // null = Pausenzeit aus dem Plan verwenden
   weightUnit: 'kg';
+  /** Kleinste verfügbare Gewichtsstufe je Gerätetyp in kg (überschreibt die Standardwerte). */
+  loadSteps?: Partial<Record<LoadType, number>>;
 }
 
 export interface PlannedExercise {
@@ -108,6 +146,18 @@ export interface SetLog {
   completed: boolean;
 }
 
+export type Effort = 'easy' | 'good' | 'hard' | 'max';
+
+/** Rückmeldung zu einer Übung in einem Training. Alle Angaben sind freiwillig. */
+export interface ExerciseFeedback {
+  exerciseId: string;
+  /** easy: deutlich mehr möglich, good: ca. 2–3 Wdh. in Reserve, hard: 0–1 in Reserve, max: am Limit */
+  effort?: Effort | null;
+  techniqueUnsure?: boolean;
+  /** Beschwerden/Schmerzen während der Übung */
+  pain?: boolean;
+}
+
 export interface WorkoutSession {
   id: string;
   planDayId: string | null;
@@ -117,6 +167,9 @@ export interface WorkoutSession {
   durationSec: number;
   xpEarned: number;
   sets: SetLog[];
+  feedback?: ExerciseFeedback[];
+  /** Selbst eingeschätzte Erholung vor dem Training, 1 = erschöpft … 5 = frisch */
+  readiness?: number | null;
 }
 
 /** Ein laufendes Training, das bei jeder Änderung gespeichert wird. */
@@ -132,7 +185,9 @@ export interface ActiveWorkout {
     targetRepsMax: number;
     targetDurationSec?: number;
     sets: SetLog[];
+    feedback?: Omit<ExerciseFeedback, 'exerciseId'>;
   }[];
+  readiness?: number | null;
   currentExerciseIndex: number;
   /** ISO-Zeitpunkt, an dem die laufende Pause endet. */
   restEndsAt: string | null;

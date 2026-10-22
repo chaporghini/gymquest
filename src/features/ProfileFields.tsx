@@ -257,6 +257,39 @@ export function LimitationFields({ control, errors }: FieldProps) {
         />
         <FieldError message={errors.notes?.message} />
       </View>
+    </>
+  );
+}
+
+/** Alter, Größe und Gewicht: freiwillig, mit Erklärung, wofür die Angaben verwendet werden. */
+export function BodyFields({ control, errors }: FieldProps) {
+  return (
+    <>
+      <View style={styles.privacy}>
+        <AppText variant="small" tone="secondary">
+          Alle Angaben auf dieser Seite sind freiwillig. Das <AppText variant="small" style={styles.bold}>Alter</AppText> nutzen wir nur, um Empfehlungen vorsichtiger zu machen (z. B. unter 18: keine Maximalversuche, mehr Reserve).{' '}
+          <AppText variant="small" style={styles.bold}>Größe und Gewicht</AppText> erscheinen nur als Verlauf in deinen Berichten. Sie werden nie in Trainingsgewichte umgerechnet und nicht bewertet.
+        </AppText>
+        <AppText variant="small" tone="secondary">
+          Gespeichert auf deinem Gerät und, wenn du angemeldet bist, in deinem Konto. Ändern oder löschen kannst du sie jederzeit im Profil.
+        </AppText>
+      </View>
+      <View style={styles.field}>
+        <Controller
+          control={control}
+          name="ageYears"
+          render={({ field }) => <Stepper label="Alter – optional" unit="Jahre" value={field.value ?? null} onChange={field.onChange} step={1} min={0} max={100} />}
+        />
+        <FieldError message={errors.ageYears?.message} />
+      </View>
+      <View style={styles.field}>
+        <Controller
+          control={control}
+          name="heightCm"
+          render={({ field }) => <Stepper label="Größe – optional" unit="cm" value={field.value ?? null} onChange={field.onChange} step={1} min={0} max={250} />}
+        />
+        <FieldError message={errors.heightCm?.message} />
+      </View>
       <View style={styles.field}>
         <Controller
           control={control}
@@ -265,8 +298,8 @@ export function LimitationFields({ control, errors }: FieldProps) {
             <Stepper label="Körpergewicht – optional" unit="kg" value={field.value ?? null} onChange={field.onChange} step={0.5} min={0} max={300} decimals />
           )}
         />
-        <AppText variant="small" tone="secondary">Freiwillig. Wird nur lokal gespeichert und nicht für die Planerstellung benötigt.</AppText>
         <FieldError message={errors.bodyWeightKg?.message} />
+        <AppText variant="small" tone="secondary">Jede Änderung wird mit Datum gespeichert, damit du den Verlauf in der Statistik siehst.</AppText>
       </View>
     </>
   );
@@ -320,5 +353,7 @@ const styles = StyleSheet.create({
   radioSelected: { borderColor: colors.accent },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accent },
   flex: { flex: 1, gap: 2 },
+  bold: { fontWeight: '700' },
+  privacy: { gap: spacing.sm, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.cardSecondary },
   expander: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
 });

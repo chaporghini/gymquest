@@ -7,6 +7,8 @@ import { AppText, Button, Card, EmptyState, ExerciseCard, Screen, SectionHeader 
 import { getExercise } from '@/data/exercises';
 import { formatDate, formatDuration, WEEKDAYS_LONG } from '@/domain/dates';
 import { estimateDayMinutes } from '@/domain/planGenerator';
+import { recommendationsForDay } from '@/domain/training';
+import { RecommendationCard } from '@/features/RecommendationCard';
 import { useApp } from '@/state/AppProvider';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -14,9 +16,10 @@ import { colors, spacing } from '@/theme/tokens';
 export default function DayDetail() {
   const { dayId } = useLocalSearchParams<{ dayId: string }>();
   const app = useApp();
-  const { plan, sessions, activeWorkout } = app;
+  const { plan, sessions, activeWorkout, trainingData } = app;
   const [error, setError] = useState<string | null>(null);
   const day = plan?.days.find((d) => d.id === dayId);
+  const recommendations = useMemo(() => recommendationsForDay(trainingData, dayId), [trainingData, dayId]);
   const history = useMemo(() => sessions.filter((s) => s.planDayId === dayId).slice(0, 3), [sessions, dayId]);
 
   if (!day) {
@@ -74,8 +77,12 @@ export default function DayDetail() {
         <View style={styles.list}>
           {day.exercises.map((pe, i) => {
             const ex = getExercise(pe.exerciseId);
+            const rec = recommendations[pe.exerciseId];
             return ex ? (
-              <ExerciseCard key={`${pe.exerciseId}-${i}`} exercise={ex} planned={pe} index={i} onPress={() => router.push({ pathname: '/library/[id]', params: { id: ex.id } })} />
+              <View key={`${pe.exerciseId}-${i}`} style={styles.exercise}>
+                <ExerciseCard exercise={ex} planned={pe} index={i} onPress={() => router.push({ pathname: '/library/[id]', params: { id: ex.id } })} />
+                {rec ? <RecommendationCard recommendation={rec} compact /> : null}
+              </View>
             ) : null;
           })}
         </View>
@@ -118,7 +125,8 @@ const styles = StyleSheet.create({
   header: { gap: 2 },
   meta: { gap: spacing.sm },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  list: { gap: spacing.sm },
+  list: { gap: spacing.lg },
+  exercise: { gap: spacing.xs },
   flex: { flex: 1 },
   bold: { fontWeight: '700' },
   historyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' },

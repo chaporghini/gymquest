@@ -3,7 +3,7 @@ import * as SQLite from 'expo-sqlite';
 // Lokale SQLite-Datenbank. Bleibt über App-Neustarts hinweg erhalten.
 
 export const DATABASE_NAME = 'gymquest.db';
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -81,6 +81,10 @@ async function migrate(db: SQLite.SQLiteDatabase) {
           UNIQUE (source, ref_id)
         );
       `);
+    }
+    if (version < 2) {
+      // Rückmeldungen (Anstrengung, Technik, Beschwerden) und Erholung je Training als JSON.
+      await db.execAsync('ALTER TABLE workout_sessions ADD COLUMN extra TEXT');
     }
     await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   });

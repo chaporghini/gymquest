@@ -1,3 +1,4 @@
+import { mergeBodyLog, sameBodyLog } from '@/domain/training/body';
 import type { Profile, Settings, TrainingPlan, WorkoutSession, XpEvent } from '@/domain/types';
 import type { GymRepository } from '../db/repository';
 import type { SingletonKind, SyncKind, SyncMeta } from './meta';
@@ -104,15 +105,53 @@ export async function applyRecords(repo: GymRepository, records: SyncRecord[], m
 
   for (const [kind, r] of latest) {
     const local = meta.modified[kind] ?? (await localFallbackModified(repo, kind));
-    if (!preferIncoming && local && local >= r.modifiedAt) continue;
-    if (kind === 'profile') await repo.saveProfile(r.data as Profile);
-    else if (kind === 'settings') await repo.saveSettings(r.data as Settings);
+    const localWins = !preferIncoming && !!local && local >= r.modifiedAt;
+    if (kind === 'profile') {
+      if (await mergeProfile(repo, r, localWins, meta)) changed++;
+      continue;
+    }
+    if (localWins) continue;
+    if (kind === 'settings') await repo.saveSettings(r.data as Settings);
     else await repo.savePlan(r.data as TrainingPlan);
     meta.modified[kind] = r.modifiedAt;
     delete meta.dirty[recordKey(kind, SINGLETON_ID)];
     changed++;
   }
   return { changed, skippedInvalid };
+}
+
+/**
+ * Profil: neuerer Stand gewinnt, der Gewichtsverlauf beider Seiten wird aber immer zusammengeführt.
+ * Kennt die Cloud danach Einträge noch nicht, wird das Profil zum Hochladen markiert.
+ * Gibt true zurück, wenn lokal gespeichert wurde.
+ */
+async function mergeProfile(repo: GymRepository, r: SyncRecord, localWins: boolean, meta: SyncMeta): Promise<boolean> {
+  const incoming = r.data as Profile;
+  const current = await repo.getProfile();
+  const bodyLog = mergeBodyLog(current?.bodyLog, incoming.bodyLog);
+  const key = recordKey('profile', SINGLETON_ID);
+  const markDirty = () => {
+    // Zeitstempel muss neuer sein als der Cloud-Stand, sonst lehnt die Datenbank ihn ab.
+    const after = new Date(new Date(r.modifiedAt).getTime() + 1).toISOString();
+    const now = new Date().toISOString();
+    meta.modified.profile = now > after ? now : after;
+    meta.dirty[key] = meta.modified.profile;
+  };
+
+  if (localWins && current) {
+    if (sameBodyLog(current.bodyLog, bodyLog)) return false;
+    await repo.saveProfile({ ...current, bodyLog });
+    markDirty();
+    return true;
+  }
+  await repo.saveProfile({ ...incoming, bodyLog });
+  if (sameBodyLog(incoming.bodyLog, bodyLog)) {
+    meta.modified.profile = r.modifiedAt;
+    delete meta.dirty[key];
+  } else {
+    markDirty();
+  }
+  return true;
 }
 
 async function localFallbackModified(repo: GymRepository, kind: SingletonKind): Promise<string | null> {

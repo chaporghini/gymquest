@@ -2,15 +2,15 @@ import type { Equipment, ExerciseCategory, Experience, Goal, Limitation, MuscleG
 
 export const experienceLabels: Record<Experience, string> = {
   beginner: 'Anfänger',
-  intermediate: 'Etwas Erfahrung',
-  advanced: 'Fortgeschritten',
+  intermediate: 'Fortgeschrittener Anfänger',
+  advanced: 'Erfahren',
 };
 
 export const goalLabels: Record<Goal, string> = {
   general: 'Allgemeine Fitness',
   strength: 'Kraft',
   hypertrophy: 'Muskelaufbau',
-  mobility: 'Beweglichkeit',
+  mobility: 'Bewegungskompetenz',
 };
 
 export const equipmentLabels: Record<Equipment, string> = {

@@ -167,7 +167,7 @@ export default function Home() {
       {starting ? <AppText tone="secondary">Training wird vorbereitet …</AppText> : null}
       {startError ? <AppText tone="error" accessibilityRole="alert">{startError}</AppText> : null}
 
-      <SectionHeader title="Diese Woche" />
+      <SectionHeader title="Diese Woche" actionLabel="Dein Fortschritt" onAction={() => router.push('/report')} />
       <Card
         style={styles.weekCard}
         onPress={() => router.push('/training')}

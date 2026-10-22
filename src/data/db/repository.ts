@@ -48,6 +48,7 @@ interface SessionRow {
   finished_at: string;
   duration_sec: number;
   xp_earned: number;
+  extra: string | null;
 }
 
 interface SetRow {
@@ -220,7 +221,7 @@ export class SqliteGymRepository implements GymRepository {
 
 async function insertSession(db: SQLiteDatabase, session: WorkoutSession) {
   await db.runAsync(
-    'INSERT INTO workout_sessions (id, plan_day_id, name, started_at, finished_at, duration_sec, xp_earned) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO workout_sessions (id, plan_day_id, name, started_at, finished_at, duration_sec, xp_earned, extra) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     session.id,
     session.planDayId,
     session.name,
@@ -228,6 +229,7 @@ async function insertSession(db: SQLiteDatabase, session: WorkoutSession) {
     session.finishedAt,
     session.durationSec,
     session.xpEarned,
+    session.feedback?.length || session.readiness != null ? JSON.stringify({ feedback: session.feedback, readiness: session.readiness }) : null,
   );
   for (const set of session.sets) {
     await db.runAsync(
@@ -259,7 +261,10 @@ async function insertXp(db: SQLiteDatabase, events: XpEvent[]) {
 }
 
 function toSession(row: SessionRow, sets: SetRow[]): WorkoutSession {
+  const extra = parseJson<Pick<WorkoutSession, 'feedback' | 'readiness'>>(row.extra);
   return {
+    ...(extra?.feedback ? { feedback: extra.feedback } : {}),
+    ...(extra?.readiness != null ? { readiness: extra.readiness } : {}),
     id: row.id,
     planDayId: row.plan_day_id,
     name: row.name,

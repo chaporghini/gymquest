@@ -87,7 +87,7 @@ describe('generateTrainingPlan', () => {
   it('nutzt bei Kraftziel niedrigere Wiederholungen und längere Pausen', () => {
     const strength = generateTrainingPlan({ ...base, goal: 'strength', equipment: ['gym'], experience: 'intermediate' }, EXERCISES, now);
     const first = strength.days[0].exercises[0];
-    expect(first.repsMax).toBeLessThanOrEqual(6);
+    expect(first.repsMax).toBeLessThanOrEqual(8);
     expect(first.restSec).toBeGreaterThanOrEqual(120);
   });
 

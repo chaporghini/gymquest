@@ -2,14 +2,16 @@ import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Info, Minus, Plus, SkipForward, Timer, Trash } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { AppText, Button, Card, ConfirmDialog, EmptyState, ProgressBar, Screen, Stepper } from '@/components';
+import { AppText, Button, Card, Chip, ConfirmDialog, EmptyState, ProgressBar, Screen, Stepper } from '@/components';
 import { getExercise } from '@/data/exercises';
 import { formatClock } from '@/domain/dates';
-import type { ActiveWorkout, SetLog } from '@/domain/types';
+import { formatRir, loadStepFor, loadTypeOf, recommendExerciseLoad } from '@/domain/training';
+import type { ActiveWorkout, Effort, ExerciseFeedback, SetLog } from '@/domain/types';
 import { completedSetCount, plannedSetCount } from '@/domain/workout';
+import { RecommendationCard } from '@/features/RecommendationCard';
 import { useApp } from '@/state/AppProvider';
 import { colors, MIN_TOUCH, radius, spacing } from '@/theme/tokens';
 
@@ -22,6 +24,21 @@ function useNow(intervalMs = 500) {
   return now;
 }
 
+const EFFORT_OPTIONS: { value: Effort; label: string }[] = [
+  { value: 'easy', label: 'Leicht' },
+  { value: 'good', label: 'Passend' },
+  { value: 'hard', label: 'Schwer' },
+  { value: 'max', label: 'Am Limit' },
+];
+
+const READINESS_OPTIONS = [
+  { value: 1, label: '1 · Erschöpft' },
+  { value: 2, label: '2 · Müde' },
+  { value: 3, label: '3 · Normal' },
+  { value: 4, label: '4 · Gut' },
+  { value: 5, label: '5 · Top' },
+];
+
 function haptic(enabled: boolean, type: 'success' | 'light') {
   if (!enabled || Platform.OS === 'web') return;
   const p = type === 'success' ? Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -31,12 +48,28 @@ function haptic(enabled: boolean, type: 'success' | 'light') {
 export default function ActiveWorkoutScreen() {
   useKeepAwake();
   const app = useApp();
-  const { activeWorkout: workout, settings } = app;
+  const { activeWorkout: workout, settings, profile, sessions } = app;
   const now = useNow();
   const [dialog, setDialog] = useState<'finish' | 'discard' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const restNotified = useRef<string | null>(null);
+
+  const exIndexRaw = workout ? Math.min(workout.currentExerciseIndex, workout.exercises.length - 1) : 0;
+  const currentRaw = workout?.exercises[exIndexRaw];
+  const startedAt = workout?.startedAt;
+  // Empfehlung zum Stand des Trainingsbeginns (das laufende Training zählt noch nicht zur Historie).
+  const recommendation = useMemo(() => {
+    const ex = currentRaw ? getExercise(currentRaw.exerciseId) : undefined;
+    if (!ex || !profile || !currentRaw || !startedAt) return null;
+    return recommendExerciseLoad(profile, ex, sessions, {
+      now: new Date(startedAt),
+      planned: { exerciseId: ex.id, sets: currentRaw.sets.length, repsMin: currentRaw.targetRepsMin, repsMax: currentRaw.targetRepsMax, durationSec: currentRaw.targetDurationSec, restSec: currentRaw.restSec },
+      settings,
+    });
+    // Sätze hinzufügen/entfernen soll die Empfehlung nicht neu berechnen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRaw?.exerciseId, currentRaw?.targetRepsMin, currentRaw?.targetRepsMax, profile, sessions, settings, startedAt]);
 
   const restRemaining = workout?.restEndsAt ? Math.ceil((new Date(workout.restEndsAt).getTime() - now) / 1000) : 0;
 
@@ -69,6 +102,8 @@ export default function ActiveWorkoutScreen() {
   const total = plannedSetCount(workout);
   const restSec = settings.defaultRestSeconds ?? current.restSec;
   const isTime = exercise?.measurement === 'time';
+  const weightStep = exercise ? loadStepFor(loadTypeOf(exercise), settings) : 2.5;
+  const feedback = current.feedback ?? {};
 
   const update = (fn: (w: ActiveWorkout) => ActiveWorkout) => app.updateActiveWorkout(fn);
 
@@ -99,6 +134,12 @@ export default function ActiveWorkoutScreen() {
       };
     });
   };
+
+  const setFeedback = (patch: Partial<Omit<ExerciseFeedback, 'exerciseId'>>) =>
+    update((w) => ({
+      ...w,
+      exercises: w.exercises.map((e, i) => (i !== exIndex ? e : { ...e, feedback: { ...e.feedback, ...patch } })),
+    }));
 
   const addSet = () =>
     update((w) => ({
@@ -202,7 +243,21 @@ export default function ActiveWorkoutScreen() {
         <AppText variant="small" tone="secondary">{done} von {total} Sätzen</AppText>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.exerciseTabs}>
+      {done === 0 || workout.readiness != null ? (
+        <Card variant="secondary" style={styles.feedbackCard}>
+          <AppText variant="bodyStrong">Wie fit fühlst du dich heute?</AppText>
+          <View style={styles.chips} accessibilityRole="radiogroup">
+            {READINESS_OPTIONS.map((o) => (
+              <Chip key={o.value} role="radio" label={o.label} selected={workout.readiness === o.value} onPress={() => update((w) => ({ ...w, readiness: w.readiness === o.value ? null : o.value }))} />
+            ))}
+          </View>
+          {workout.readiness != null && workout.readiness <= 2 ? (
+            <AppText variant="small" tone="secondary">Heute lieber beim gewohnten Gewicht bleiben oder etwas leichter trainieren. Steigerungen holst du an einem fitteren Tag nach.</AppText>
+          ) : null}
+        </Card>
+      ) : null}
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.noGrow} contentContainerStyle={styles.exerciseTabs}>
         {workout.exercises.map((e, i) => {
           const ex = getExercise(e.exerciseId);
           const allDone = e.sets.every((s) => s.completed);
@@ -243,6 +298,8 @@ export default function ActiveWorkoutScreen() {
           ) : null}
         </View>
 
+        {recommendation ? <RecommendationCard recommendation={recommendation} compact /> : null}
+
         {current.sets.map((set, j) => (
           <View key={j} style={[styles.setRow, set.completed && styles.setDone]}>
             <View style={styles.setInputs}>
@@ -252,7 +309,7 @@ export default function ActiveWorkoutScreen() {
                 <Stepper compact label={`Satz ${j + 1} · Wdh.`} value={set.reps} onChange={(v) => updateSet(j, { reps: v })} max={100} />
               )}
               {exercise?.usesWeight || (set.weightKg ?? 0) > 0 ? (
-                <Stepper label="Gewicht" unit="kg" compact value={set.weightKg} onChange={(v) => updateSet(j, { weightKg: v })} step={2.5} max={500} decimals />
+                <Stepper label="Gewicht" unit="kg" compact value={set.weightKg} onChange={(v) => updateSet(j, { weightKg: v })} step={weightStep} max={500} decimals />
               ) : null}
             </View>
             <Pressable
@@ -270,6 +327,26 @@ export default function ActiveWorkoutScreen() {
           <Button label="Satz hinzufügen" icon={Plus} variant="ghost" size="sm" onPress={addSet} />
           <Button label="Satz entfernen" icon={Minus} variant="ghost" size="sm" onPress={removeSet} disabled={current.sets.length <= 1} accessibilityLabel="Letzten Satz entfernen" />
         </View>
+
+        {current.sets.some((st) => st.completed) ? (
+          <View style={styles.feedbackCard}>
+            <AppText variant="bodyStrong">Wie anstrengend war diese Übung?</AppText>
+            <View style={styles.chips} accessibilityRole="radiogroup">
+              {EFFORT_OPTIONS.map((o) => (
+                <Chip key={o.value} role="radio" label={o.label} selected={feedback.effort === o.value} onPress={() => setFeedback({ effort: feedback.effort === o.value ? null : o.value })} />
+              ))}
+            </View>
+            <View style={styles.chips}>
+              <Chip role="checkbox" label="Technik unsicher" selected={!!feedback.techniqueUnsure} onPress={() => setFeedback({ techniqueUnsure: !feedback.techniqueUnsure })} />
+              <Chip role="checkbox" label="Beschwerden" selected={!!feedback.pain} onPress={() => setFeedback({ pain: !feedback.pain })} />
+            </View>
+            <AppText variant="small" tone="secondary">
+              {feedback.pain
+                ? 'Brich die Übung ab, wenn es schmerzt. Beim nächsten Mal schlagen wir keine Steigerung vor. Halten Beschwerden an, lass dich ärztlich oder physiotherapeutisch beraten.'
+                : `Hilft bei der Empfehlung fürs nächste Mal. Passend heißt: noch etwa ${formatRir(recommendation?.targetRepsInReserve ?? [1, 3])} saubere Wiederholungen wären möglich gewesen.`}
+            </AppText>
+          </View>
+        ) : null}
       </Card>
 
       <View style={styles.nav}>
@@ -323,6 +400,7 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center' },
   iconBtn: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
   progress: { gap: spacing.xs },
+  noGrow: { flexGrow: 0 },
   exerciseTabs: { gap: spacing.sm, paddingRight: spacing.lg },
   exTab: { paddingHorizontal: spacing.md, minHeight: 36, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, maxWidth: 200 },
   exTabActive: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
@@ -335,6 +413,8 @@ const styles = StyleSheet.create({
   check: { width: 52, height: 52, borderRadius: radius.md, borderWidth: 2, borderColor: colors.borderStrong, alignItems: 'center', justifyContent: 'center' },
   checkDone: { backgroundColor: colors.accent, borderColor: colors.accent },
   setActions: { flexDirection: 'row', justifyContent: 'center', gap: spacing.md },
+  feedbackCard: { gap: spacing.sm },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   nav: { flexDirection: 'row', gap: spacing.md },
   rest: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: 'rgba(199,255,85,0.35)' },
   restDone: { alignItems: 'center', padding: spacing.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },

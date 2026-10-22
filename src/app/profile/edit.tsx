@@ -4,33 +4,23 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { StyleSheet, Switch, View } from 'react-native';
 
-import { AppText, Button, Card, Screen } from '@/components';
-import { profileFormSchema, type ProfileForm } from '@/domain/profileSchema';
-import { EquipmentField, ExperienceField, GoalField, LimitationFields, NameField, ScheduleFields } from '@/features/ProfileFields';
+import { AppText, Button, Card, ConfirmDialog, Screen } from '@/components';
+import { Trash2 } from 'lucide-react-native';
+import { formFromProfile, profileFormSchema, type ProfileForm } from '@/domain/profileSchema';
+import { currentAge } from '@/domain/training';
+import { BodyFields, EquipmentField, ExperienceField, GoalField, LimitationFields, NameField, ScheduleFields } from '@/features/ProfileFields';
 import { useApp } from '@/state/AppProvider';
 import { colors, spacing } from '@/theme/tokens';
 
 export default function EditProfile() {
-  const { profile, updateProfile } = useApp();
+  const { profile, updateProfile, clearBodyData } = useApp();
+  const [confirmClear, setConfirmClear] = useState(false);
   const [regenerate, setRegenerate] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { control, formState, handleSubmit } = useForm<ProfileForm>({
+  const { control, formState, handleSubmit, setValue } = useForm<ProfileForm>({
     resolver: zodResolver(profileFormSchema),
     mode: 'onChange',
-    defaultValues: profile
-      ? {
-          displayName: profile.displayName,
-          experience: profile.experience,
-          goal: profile.goal,
-          daysPerWeek: profile.daysPerWeek,
-          sessionMinutes: profile.sessionMinutes,
-          equipment: profile.equipment,
-          limitations: profile.limitations,
-          excludedExerciseIds: profile.excludedExerciseIds,
-          notes: profile.notes ?? '',
-          bodyWeightKg: profile.bodyWeightKg ?? null,
-        }
-      : undefined,
+    defaultValues: profile ? formFromProfile(profile, currentAge(profile, new Date())) : undefined,
   });
 
   const save = handleSubmit(async (form) => {
@@ -63,6 +53,9 @@ export default function EditProfile() {
       <ScheduleFields {...props} />
       <EquipmentField {...props} />
       <LimitationFields {...props} />
+      <AppText variant="heading" accessibilityRole="header">Über dich</AppText>
+      <BodyFields {...props} />
+      <Button label="Körperdaten löschen" variant="secondary" icon={Trash2} onPress={() => setConfirmClear(true)} />
       <Card variant="secondary" style={styles.toggle}>
         <View style={styles.flex}>
           <AppText variant="bodyStrong">Trainingsplan neu erstellen</AppText>
@@ -76,6 +69,21 @@ export default function EditProfile() {
           accessibilityLabel="Trainingsplan neu erstellen"
         />
       </Card>
+      <ConfirmDialog
+        visible={confirmClear}
+        title="Körperdaten löschen?"
+        message="Alter, Größe, Körpergewicht und der gesamte Gewichtsverlauf werden gelöscht, auf diesem Gerät und im Konto. Trainings bleiben erhalten."
+        confirmLabel="Löschen"
+        destructive
+        onCancel={() => setConfirmClear(false)}
+        onConfirm={async () => {
+          setConfirmClear(false);
+          await clearBodyData();
+          setValue('ageYears', null);
+          setValue('heightCm', null);
+          setValue('bodyWeightKg', null);
+        }}
+      />
     </Screen>
   );
 }
