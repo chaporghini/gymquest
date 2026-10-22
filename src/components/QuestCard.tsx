@@ -7,11 +7,13 @@ import { AppText } from './AppText';
 import { Card } from './Card';
 import { ProgressBar } from './ProgressBar';
 
-export function QuestCard({ quest, compact }: { quest: QuestStatus; compact?: boolean }) {
+export function QuestCard({ quest, compact, onPress }: { quest: QuestStatus; compact?: boolean; onPress?: () => void }) {
   const Icon = quest.completed ? CircleCheck : Target;
   return (
     <Card
       variant={quest.completed ? 'highlight' : 'default'}
+      onPress={onPress}
+      accessibilityHint={onPress ? 'Öffnet die Quest-Details' : undefined}
       accessibilityLabel={`Quest ${quest.title}: ${quest.progress} von ${quest.target}. Belohnung ${quest.rewardXp} XP.${quest.completed ? ' Abgeschlossen.' : ''}`}
       style={styles.card}>
       <View style={styles.row}>

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { CalendarDays, Dumbbell, Info, Play, Sparkles } from 'lucide-react-native';
+import { Award, CalendarDays, Dumbbell, Info, Play, Sparkles, Target } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -17,20 +17,14 @@ import {
   WorkoutCard,
   XPBar,
 } from '@/components';
-import { addDays, isSameDay, startOfWeek, WEEKDAYS_LONG, WEEKDAYS_SHORT, weekdayIndex } from '@/domain/dates';
-import { computeAchievements, computeWeeklyQuests, sessionsInWeek, summarizeWeek } from '@/domain/progression';
+import { addDays, formatDate, isSameDay, WEEKDAYS_LONG, WEEKDAYS_SHORT, weekdayIndex } from '@/domain/dates';
+import { getGreeting } from '@/domain/greeting';
+import { computeAchievements, computeWeeklyQuests, summarizeWeek } from '@/domain/progression';
 import { getNextRank } from '@/domain/ranks';
+import { getWeekOverview } from '@/domain/weekPlan';
 import { getNextSession } from '@/domain/workout';
 import { useApp } from '@/state/AppProvider';
 import { colors, spacing } from '@/theme/tokens';
-
-function greeting(date: Date): string {
-  const h = date.getHours();
-  if (h < 5) return 'Gute Nacht';
-  if (h < 11) return 'Guten Morgen';
-  if (h < 18) return 'Guten Tag';
-  return 'Guten Abend';
-}
 
 export default function Home() {
   const app = useApp();
@@ -50,9 +44,19 @@ export default function Home() {
         .slice(0, 2),
     [sessions, xpEvents, plan, now],
   );
-  const doneDayIds = useMemo(() => new Set(sessionsInWeek(sessions, startOfWeek(now)).map((s) => s.planDayId)), [sessions, now]);
+  const overview = useMemo(() => getWeekOverview(plan, sessions, now, now), [plan, sessions, now]);
   const nextRank = getNextRank(level.level);
   const activeQuests = quests.filter((q) => !q.completed).slice(0, 3);
+  const greeting = getGreeting({
+    name: profile?.displayName ?? '',
+    date: now,
+    hasSessions: sessions.length > 0,
+    hasActiveWorkout: !!activeWorkout,
+    trainingToday: !!next?.isToday,
+    trainedToday: sessions.some((s) => isSameDay(new Date(s.finishedAt), now)),
+    openQuests: quests.filter((q) => !q.completed).length,
+  });
+  const recentXp = xpEvents.slice(0, 3);
 
   const start = async () => {
     setStartError(null);
@@ -78,15 +82,20 @@ export default function Home() {
           ? `Nächste Woche · ${WEEKDAYS_LONG[next.day.weekday]}`
           : WEEKDAYS_LONG[next.day.weekday]
     : '';
+  const nextSubtitle = next ? (next.isToday || nextLabel === 'Morgen' ? `${nextLabel} · ${WEEKDAYS_LONG[next.day.weekday]}` : nextLabel) : '';
 
   return (
     <Screen>
       <View style={styles.header}>
-        <AppText tone="secondary">{greeting(now)},</AppText>
-        <AppText variant="display" numberOfLines={1}>{profile?.displayName ?? 'Abenteurer'}</AppText>
+        <AppText variant="title" accessibilityRole="header">{greeting.title}</AppText>
+        <AppText tone="secondary">{greeting.subtitle}</AppText>
       </View>
 
-      <Card style={styles.levelCard} accessibilityLabel={`Rang ${rank.name}, Level ${level.level}, ${level.totalXp} XP gesamt`}>
+      <Card
+        style={styles.levelCard}
+        onPress={() => router.push('/progress')}
+        accessibilityLabel={`Rang ${rank.name}, Level ${level.level}, ${level.totalXp} XP gesamt, noch ${level.xpRemaining} XP bis Level ${level.level + 1}`}
+        accessibilityHint="Öffnet die XP- und Rangübersicht">
         <View style={styles.levelRow}>
           <LevelBadge level={level.level} size="lg" />
           <View style={styles.flex}>
@@ -99,6 +108,24 @@ export default function Home() {
         {nextRank ? (
           <AppText variant="small" tone="secondary">Nächster Rang: {nextRank.name} ab Level {nextRank.minLevel}</AppText>
         ) : null}
+        {recentXp.length > 0 ? (
+          <View style={styles.recent}>
+            <AppText variant="caption" tone="secondary">ZULETZT ERHALTEN</AppText>
+            {recentXp.map((e) => {
+              const Icon = e.source === 'workout' ? Dumbbell : e.source === 'quest' ? Target : Award;
+              return (
+                <View key={e.id} style={styles.recentRow}>
+                  <Icon size={14} color={colors.textSecondary} />
+                  <AppText variant="small" numberOfLines={1} style={styles.flex}>{e.label}</AppText>
+                  <AppText variant="small" tone="secondary">{formatDate(e.createdAt).slice(0, 10)}</AppText>
+                  <AppText variant="small" tone="accent" style={styles.bold}>{e.amount > 0 ? `+${e.amount}` : '–'}</AppText>
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <AppText variant="small" tone="secondary">XP gibt es für abgeschlossene Trainings, Quests und Achievements.</AppText>
+        )}
       </Card>
 
       {profile && !profile.onboardingCompleted ? (
@@ -121,44 +148,67 @@ export default function Home() {
       ) : next ? (
         <WorkoutCard
           day={next.day}
-          subtitle={nextLabel}
+          subtitle={nextSubtitle}
           highlight={next.isToday}
-          onPress={() => router.push('/training')}
+          showExercises
+          onPress={() => router.push({ pathname: '/day/[dayId]', params: { dayId: next.day.id } })}
           onStart={start}
           startLabel={next.nextWeek ? 'Trotzdem jetzt trainieren' : 'Training starten'}
         />
       ) : (
-        <EmptyState icon={CalendarDays} title="Kein Trainingsplan" message="Erstelle im Profil einen Plan, um loszulegen." actionLabel="Zum Profil" onAction={() => router.push('/profile')} />
+        <EmptyState
+          icon={CalendarDays}
+          title="Noch kein Trainingsplan"
+          message="Lass dir aus deinem Profil einen Wochenplan erstellen. Du kannst ihn danach jederzeit anpassen."
+          actionLabel="Trainingsplan erstellen"
+          onAction={() => app.regeneratePlan().catch((e) => setStartError(e instanceof Error ? e.message : 'Plan konnte nicht erstellt werden.'))}
+        />
       )}
       {starting ? <AppText tone="secondary">Training wird vorbereitet …</AppText> : null}
       {startError ? <AppText tone="error" accessibilityRole="alert">{startError}</AppText> : null}
 
       <SectionHeader title="Diese Woche" />
-      <Card style={styles.weekCard}>
-        <ProgressRing value={week.goal ? week.workouts / week.goal : 0} size={92} accessibilityLabel={`Wochenziel: ${week.workouts} von ${week.goal} Trainings`}>
-          <AppText variant="heading">{week.workouts}/{week.goal}</AppText>
+      <Card
+        style={styles.weekCard}
+        onPress={() => router.push('/training')}
+        accessibilityLabel={`Diese Woche: ${week.workouts} von ${week.goal} Einheiten erledigt, ${week.sets} Sätze`}
+        accessibilityHint="Öffnet den Wochenplan">
+        <ProgressRing value={overview.planned ? overview.completed / overview.planned : 0} size={92}>
+          <AppText variant="heading">{overview.completed}/{overview.planned}</AppText>
           <AppText variant="caption" tone="secondary">EINHEITEN</AppText>
         </ProgressRing>
         <View style={styles.weekStats}>
           <View style={styles.days}>
-            {WEEKDAYS_SHORT.map((label, i) => {
-              const planned = plan?.days.find((d) => d.weekday === i);
-              const done = planned ? doneDayIds.has(planned.id) : false;
+            {overview.days.map((d, i) => {
+              const label = WEEKDAYS_SHORT[i];
               const today = i === weekdayIndex(now);
+              const statusText = { rest: 'Ruhetag', planned: 'geplant', today: 'heute geplant', done: 'erledigt', missed: 'nicht absolviert' }[d.status];
               return (
-                <View key={label} style={styles.dayCol} accessibilityLabel={`${WEEKDAYS_LONG[i]}: ${planned ? (done ? 'erledigt' : 'geplant') : 'Ruhetag'}`}>
-                  <View style={[styles.dayDot, planned && styles.dayPlanned, done && styles.dayDone, today && styles.dayToday]} />
+                <View key={label} style={styles.dayCol} accessibilityLabel={`${WEEKDAYS_LONG[i]}: ${statusText}`}>
+                  <View
+                    style={[
+                      styles.dayDot,
+                      d.planDay && styles.dayPlanned,
+                      d.status === 'missed' && styles.dayMissed,
+                      d.status === 'done' && styles.dayDone,
+                      today && styles.dayToday,
+                    ]}
+                  />
                   <AppText variant="caption" tone={today ? 'accent' : 'secondary'}>{label}</AppText>
                 </View>
               );
             })}
           </View>
           <AppText variant="small" tone="secondary">
+            {overview.completed} von {overview.planned} geplanten Einheiten erledigt
+            {overview.extraSessions > 0 ? ` · ${overview.extraSessions} zusätzlich` : ''}
+          </AppText>
+          <AppText variant="small" tone="secondary">
             {week.sets} Sätze · {week.minutes} min Training
           </AppText>
-          <AppText variant="small" tone={week.workouts >= week.goal ? 'accent' : 'secondary'}>
-            {week.workouts >= week.goal ? 'Wochenziel erreicht – stark!' : `Noch ${week.goal - week.workouts} bis zum Wochenziel`}
-          </AppText>
+          {overview.planned > 0 && overview.completed >= overview.planned ? (
+            <AppText variant="small" tone="accent">Alle geplanten Einheiten erledigt.</AppText>
+          ) : null}
         </View>
       </Card>
 
@@ -170,7 +220,9 @@ export default function Home() {
       <SectionHeader title="Aktive Quests" actionLabel="Alle Quests" onAction={() => router.push('/quests')} />
       {activeQuests.length > 0 ? (
         <View style={styles.gap}>
-          {activeQuests.map((q) => <QuestCard key={q.id} quest={q} compact />)}
+          {activeQuests.map((q) => (
+            <QuestCard key={q.id} quest={q} compact onPress={() => router.push({ pathname: '/quest/[id]', params: { id: q.id } })} />
+          ))}
         </View>
       ) : (
         <Card variant="highlight" style={styles.hint}>
@@ -195,7 +247,10 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  header: { gap: 2 },
+  header: { gap: 4 },
+  bold: { fontWeight: '700' },
+  recent: { gap: 6, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md },
+  recentRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   flex: { flex: 1 },
   gap: { gap: spacing.md },
   levelCard: { gap: spacing.lg },
@@ -207,6 +262,7 @@ const styles = StyleSheet.create({
   dayCol: { alignItems: 'center', gap: 4 },
   dayDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.cardSecondary },
   dayPlanned: { borderWidth: 2, borderColor: colors.accent, backgroundColor: 'transparent' },
+  dayMissed: { borderColor: colors.warning },
   dayDone: { backgroundColor: colors.accent, borderColor: colors.accent },
   dayToday: { transform: [{ scale: 1.15 }] },
   quick: { flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap' },

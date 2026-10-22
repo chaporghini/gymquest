@@ -93,6 +93,9 @@ function RootNavigator() {
         <Stack.Screen name="library/[id]" options={{ ...header, title: 'Übung' }} />
         <Stack.Screen name="history/[id]" options={{ ...header, title: 'Training' }} />
         <Stack.Screen name="profile/edit" options={{ ...header, title: 'Profil bearbeiten' }} />
+        <Stack.Screen name="day/[dayId]" options={{ ...header, title: 'Trainingsdetails' }} />
+        <Stack.Screen name="quest/[id]" options={{ ...header, title: 'Quest' }} />
+        <Stack.Screen name="progress" options={{ ...header, title: 'XP & Ränge' }} />
       </Stack.Protected>
       <Stack.Screen name="+not-found" options={{ ...header, title: 'Nicht gefunden' }} />
     </Stack>

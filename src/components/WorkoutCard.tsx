@@ -2,6 +2,7 @@ import { ChevronRight, Clock, Dumbbell, Play } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { WEEKDAYS_LONG } from '@/domain/dates';
+import { getExercise } from '@/data/exercises';
 import { estimateDayMinutes } from '@/domain/planGenerator';
 import type { PlanDay } from '@/domain/types';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -17,9 +18,11 @@ export interface WorkoutCardProps {
   onPress?: () => void;
   onStart?: () => void;
   startLabel?: string;
+  /** Übungsnamen in der Karte anzeigen */
+  showExercises?: boolean;
 }
 
-export function WorkoutCard({ day, subtitle, done, highlight, onPress, onStart, startLabel = 'Training starten' }: WorkoutCardProps) {
+export function WorkoutCard({ day, subtitle, done, highlight, onPress, onStart, startLabel = 'Training starten', showExercises }: WorkoutCardProps) {
   const minutes = estimateDayMinutes(day);
   return (
     <Card variant={highlight ? 'highlight' : 'default'} style={styles.card}>
@@ -51,6 +54,19 @@ export function WorkoutCard({ day, subtitle, done, highlight, onPress, onStart, 
           <AppText variant="small" tone="secondary">{day.exercises.length} Übungen</AppText>
         </View>
       </View>
+      {showExercises && day.exercises.length > 0 ? (
+        <View style={styles.exercises}>
+          {day.exercises.slice(0, 5).map((e, i) => (
+            <AppText key={`${e.exerciseId}-${i}`} variant="small" numberOfLines={1}>
+              <AppText variant="small" tone="secondary">{i + 1}. </AppText>
+              {getExercise(e.exerciseId)?.name ?? e.exerciseId}
+            </AppText>
+          ))}
+          {day.exercises.length > 5 ? (
+            <AppText variant="small" tone="secondary">+ {day.exercises.length - 5} weitere</AppText>
+          ) : null}
+        </View>
+      ) : null}
       {onStart ? <Button label={startLabel} icon={Play} onPress={onStart} fullWidth /> : null}
     </Card>
   );
@@ -62,5 +78,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1, gap: 2 },
   done: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.sm, backgroundColor: colors.accentMuted },
   meta: { flexDirection: 'row', gap: spacing.lg },
+  exercises: { gap: 4, paddingLeft: spacing.xs },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
 });

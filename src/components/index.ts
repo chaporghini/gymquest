@@ -10,6 +10,7 @@ export * from './LevelBadge';
 export * from './ProgressBar';
 export * from './ProgressRing';
 export * from './QuestCard';
+export * from './RankList';
 export * from './Screen';
 export * from './SectionHeader';
 export * from './StatCard';
