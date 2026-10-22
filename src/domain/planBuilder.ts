@@ -1,6 +1,7 @@
 import { WEEKDAYS_LONG } from './dates';
-import { DAY_FOCUS_LABELS, isExerciseAllowed, prescribe, suggestDay, type DayFocus } from './planGenerator';
-import type { Exercise, PlanDay, Profile, TrainingPlan } from './types';
+import { MUSCLE_LABELS, muscleLoad, musclesOf, type Muscle } from './muscles';
+import { DAY_FOCUS_LABELS, estimateDayMinutes, isExerciseAllowed, prescribe, suggestDay, type DayFocus } from './planGenerator';
+import type { Exercise, MuscleGroup, PlanDay, Profile, TrainingPlan } from './types';
 
 // Eigener Trainingsplan: einfache, reine Funktionen für den Plan-Baukasten.
 
@@ -92,4 +93,66 @@ export function buildCustomPlan(days: PlanDay[], now: Date): TrainingPlan {
     split: 'Eigener Plan',
     days: sorted,
   };
+}
+
+// --- „Neue Übung“: Vorschläge für eine Einheit mit Begründung -------------------
+
+export interface ExerciseSuggestion {
+  exercise: Exercise;
+  reason: string;
+}
+
+const join = (list: string[]) => (list.length <= 1 ? list.join('') : `${list.slice(0, -1).join(', ')} und ${list[list.length - 1]}`);
+
+/**
+ * Schlägt Übungen vor, die eine Einheit sinnvoll ergänzen. Ohne `group`: zuerst Muskeln, die in der
+ * ganzen Woche fehlen, dann solche, die in dieser Einheit fehlen. Mit `group`: passend zur Muskelgruppe.
+ * `offset` blättert durch weitere Vorschläge.
+ */
+export function suggestForDay(
+  day: PlanDay,
+  allDays: PlanDay[],
+  profile: Profile,
+  library: Exercise[],
+  group: MuscleGroup | null = null,
+  offset = 0,
+  limit = 3,
+): ExerciseSuggestion[] {
+  const inDay = new Set(day.exercises.map((e) => e.exerciseId));
+  const inWeek = new Set(allDays.flatMap((d) => d.exercises.map((e) => e.exerciseId)));
+  const dayLoad = muscleLoad([...inDay]);
+  const weekLoad = muscleLoad([...inWeek]);
+  const maxDiff = profile.experience === 'beginner' ? 1 : profile.experience === 'intermediate' ? 2 : 3;
+
+  const scored = library
+    .filter((e) => isExerciseAllowed(e, profile) && !inDay.has(e.id) && (!group || e.muscleGroup === group || e.secondaryMuscles.includes(group)))
+    .map((e) => {
+      const primary = musclesOf(e.id).primary;
+      const newInWeek = primary.filter((m) => weekLoad[m] === 'none');
+      const newInDay = primary.filter((m) => dayLoad[m] === 'none' && weekLoad[m] !== 'none');
+      let score = newInWeek.length * 5 + newInDay.length * 3;
+      if (group && e.muscleGroup === group) score += 6;
+      if (e.difficulty > maxDiff) score -= 4;
+      if (inWeek.has(e.id)) score -= 2;
+      if (e.category === 'mobility') score -= 1;
+      const names = (list: Muscle[]) => join(list.map((m) => MUSCLE_LABELS[m]));
+      const reason = newInWeek.length
+        ? `Trainiert ${names(newInWeek)}, das kommt in deiner Woche bisher gar nicht vor.`
+        : newInDay.length
+          ? `Ergänzt ${names(newInDay)}, das fehlt in dieser Einheit noch.`
+          : primary.length
+            ? `Mehr für ${names(primary)}${inWeek.has(e.id) ? ' (machst du schon an einem anderen Tag)' : ''}.`
+            : 'Lockert und verbessert die Beweglichkeit.';
+      return { exercise: e, reason, score };
+    })
+    .filter((x) => group || x.score > 0)
+    .sort((a, b) => b.score - a.score || a.exercise.difficulty - b.exercise.difficulty || a.exercise.id.localeCompare(b.exercise.id));
+  if (scored.length === 0) return [];
+  const start = (offset * limit) % scored.length;
+  return [...scored.slice(start), ...scored.slice(0, start)].slice(0, Math.min(limit, scored.length)).map(({ exercise, reason }) => ({ exercise, reason }));
+}
+
+/** Wie lange die Einheit mit einer zusätzlichen Übung ungefähr dauert. */
+export function minutesWith(day: PlanDay, exercise: Exercise, profile: Profile): number {
+  return estimateDayMinutes({ exercises: [...day.exercises, prescribe(exercise, profile)] });
 }

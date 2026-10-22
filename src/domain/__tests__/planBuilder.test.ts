@@ -1,7 +1,7 @@
 import { EXERCISES } from '@/data/exercises';
 import { EXERCISE_MUSCLES, muscleLoad, musclesWith, suggestForMissing } from '../muscles';
-import { addExercise, applyFocus, buildCustomPlan, moveExercise, removeExercise, swapExercise, toggleWeekday, validateDraft } from '../planBuilder';
-import { isExerciseAllowed } from '../planGenerator';
+import { addExercise, applyFocus, buildCustomPlan, minutesWith, moveExercise, suggestForDay, removeExercise, swapExercise, toggleWeekday, validateDraft } from '../planBuilder';
+import { estimateDayMinutes, isExerciseAllowed } from '../planGenerator';
 import type { PlanDay, Profile } from '../types';
 
 const profile: Profile = {
@@ -85,5 +85,35 @@ describe('Plan-Baukasten', () => {
     expect(plan.split).toBe('Eigener Plan');
     expect(plan.days.map((d) => d.weekday)).toEqual([0, 4]);
     expect(new Set(plan.days.map((d) => d.id)).size).toBe(2);
+  });
+});
+
+describe('Neue Übung: Vorschläge für eine Einheit', () => {
+  const pushDay: PlanDay = { id: 'd1', name: 'Ganzkörper C', weekday: 4, focus: '', exercises: [
+    { exerciseId: 'bench_press', sets: 3, repsMin: 8, repsMax: 12, restSec: 90 },
+    { exerciseId: 'overhead_press', sets: 3, repsMin: 8, repsMax: 12, restSec: 90 },
+  ] };
+
+  it('schlägt zuerst Muskeln vor, die in der Woche fehlen, mit Begründung', () => {
+    const s = suggestForDay(pushDay, [pushDay], profile, EXERCISES);
+    expect(s).toHaveLength(3);
+    expect(s.every((x) => !['bench_press', 'overhead_press'].includes(x.exercise.id))).toBe(true);
+    expect(s[0].reason).toMatch(/in deiner Woche bisher gar nicht/);
+    const load = muscleLoad(['bench_press', 'overhead_press']);
+    expect(EXERCISE_MUSCLES[s[0].exercise.id].primary.some((m) => load[m] === 'none')).toBe(true);
+  });
+
+  it('filtert nach Muskelgruppe, beachtet Equipment und blättert weiter', () => {
+    const legs = suggestForDay(pushDay, [pushDay], profile, EXERCISES, 'legs');
+    expect(legs.every((x) => x.exercise.muscleGroup === 'legs' || x.exercise.secondaryMuscles.includes('legs'))).toBe(true);
+    const home = { ...profile, equipment: ['bodyweight' as const] };
+    for (const x of suggestForDay(pushDay, [pushDay], home, EXERCISES, null, 0, 10)) expect(isExerciseAllowed(x.exercise, home)).toBe(true);
+    const next = suggestForDay(pushDay, [pushDay], profile, EXERCISES, null, 1);
+    expect(next[0].exercise.id).not.toBe(suggestForDay(pushDay, [pushDay], profile, EXERCISES)[0].exercise.id);
+  });
+
+  it('schätzt die Dauer mit der neuen Übung', () => {
+    const squat = EXERCISES.find((e) => e.id === 'goblet_squat')!;
+    expect(minutesWith(pushDay, squat, profile)).toBeGreaterThan(estimateDayMinutes(pushDay));
   });
 });

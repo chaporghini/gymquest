@@ -1,5 +1,5 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { ChevronRight, Pencil, Play, SearchX } from 'lucide-react-native';
+import { ChevronRight, Pencil, Play, Plus, SearchX } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -7,7 +7,8 @@ import { AppText, Button, Card, EmptyState, prescriptionText, Screen, SectionHea
 import { getExercise } from '@/data/exercises';
 import { WEEKDAYS_LONG } from '@/domain/dates';
 import { dayMuscleLoad } from '@/domain/muscles';
-import { estimateDayMinutes } from '@/domain/planGenerator';
+import { estimateDayMinutes, prescribe } from '@/domain/planGenerator';
+import { AddExerciseAssistant } from '@/features/AddExerciseAssistant';
 import { BodyMap } from '@/features/BodyMap';
 import { useApp } from '@/state/AppProvider';
 import { colors, spacing } from '@/theme/tokens';
@@ -16,8 +17,9 @@ import { colors, spacing } from '@/theme/tokens';
 export default function DayDetail() {
   const { dayId } = useLocalSearchParams<{ dayId: string }>();
   const app = useApp();
-  const { plan, activeWorkout } = app;
+  const { plan, activeWorkout, profile } = app;
   const [error, setError] = useState<string | null>(null);
+  const [assistant, setAssistant] = useState(false);
   const day = plan?.days.find((d) => d.id === dayId);
   const load = useMemo(() => (day ? dayMuscleLoad(day) : null), [day]);
 
@@ -62,7 +64,7 @@ export default function DayDetail() {
 
       <SectionHeader title="Übungen" actionLabel="Anpassen" onAction={() => router.push(`/plan/builder?day=${day.weekday}`)} />
       {day.exercises.length === 0 ? (
-        <EmptyState icon={Pencil} title="Noch keine Übungen" message="Füge im Plan Übungen hinzu." actionLabel="Plan anpassen" onAction={() => router.push('/plan/builder')} />
+        <EmptyState icon={Pencil} title="Noch keine Übungen" message="Tippe auf „Neue Übung“, die App schlägt dir passende vor." />
       ) : (
         <Card padded={false}>
           {day.exercises.map((pe, i) => {
@@ -83,7 +85,19 @@ export default function DayDetail() {
           })}
         </Card>
       )}
+      <Button label="Neue Übung" icon={Plus} variant="secondary" onPress={() => setAssistant(true)} accessibilityHint="Die App schlägt passende Übungen für diese Einheit vor" />
       <AppText variant="small" tone="secondary">Gewichtsempfehlungen siehst du beim Training direkt an jeder Übung.</AppText>
+
+      {profile && plan ? (
+        <AddExerciseAssistant
+          visible={assistant}
+          day={day}
+          allDays={plan.days}
+          profile={profile}
+          onClose={() => setAssistant(false)}
+          onAdd={(e) => app.savePlan({ ...plan, days: plan.days.map((d) => (d.id === day.id && !d.exercises.some((x) => x.exerciseId === e.id) ? { ...d, exercises: [...d.exercises, prescribe(e, profile)] } : d)) })}
+        />
+      ) : null}
     </Screen>
   );
 }

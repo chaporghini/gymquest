@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowDown, ArrowUp, Plus, Repeat, Search, Sparkles, X } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, Plus, Repeat, Sparkles, X } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Button, Card, Chip, prescriptionText, Screen } from '@/components';
 import { EXERCISES, getExercise } from '@/data/exercises';
@@ -20,8 +20,8 @@ import {
   validateDraft,
 } from '@/domain/planBuilder';
 import { DAY_FOCUS_LABELS, estimateDayMinutes, isExerciseAllowed, type DayFocus } from '@/domain/planGenerator';
-import type { Exercise, MuscleGroup, PlanDay } from '@/domain/types';
-import { muscleLabels } from '@/i18n/labels';
+import type { PlanDay } from '@/domain/types';
+import { AddExerciseAssistant } from '@/features/AddExerciseAssistant';
 import { BodyMap } from '@/features/BodyMap';
 import { useApp } from '@/state/AppProvider';
 import { colors, MIN_TOUCH, radius, spacing, typography } from '@/theme/tokens';
@@ -163,7 +163,7 @@ export default function PlanBuilder() {
                   );
                 })}
               </View>
-              <Button label="Übung hinzufügen" icon={Plus} variant="secondary" onPress={() => setPicker(true)} />
+              <Button label="Neue Übung" icon={Plus} variant="secondary" onPress={() => setPicker(true)} />
             </Card>
           ) : null}
 
@@ -199,16 +199,16 @@ export default function PlanBuilder() {
         </>
       ) : null}
 
-      <ExercisePicker
-        visible={picker}
-        allowed={(e) => isExerciseAllowed(e, profile)}
-        exclude={new Set(day?.exercises.map((e) => e.exerciseId) ?? [])}
-        onClose={() => setPicker(false)}
-        onPick={(e) => {
-          if (day) change(addExercise(days, day.weekday, e, profile));
-          setPicker(false);
-        }}
-      />
+      {day ? (
+        <AddExerciseAssistant
+          visible={picker}
+          day={day}
+          allDays={days}
+          profile={profile}
+          onClose={() => setPicker(false)}
+          onAdd={(e) => setDays((current) => addExercise(current, day.weekday, e, profile))}
+        />
+      ) : null}
     </Screen>
   );
 }
@@ -227,47 +227,6 @@ function IconBtn({ label, onPress, disabled, children }: { label: string; onPres
     <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={label} hitSlop={4} style={[styles.iconBtn, disabled && styles.disabled]}>
       {children}
     </Pressable>
-  );
-}
-
-const GROUPS: MuscleGroup[] = ['chest', 'back', 'shoulders', 'legs', 'glutes', 'arms', 'core'];
-
-function ExercisePicker({ visible, allowed, exclude, onClose, onPick }: { visible: boolean; allowed: (e: Exercise) => boolean; exclude: Set<string>; onClose: () => void; onPick: (e: Exercise) => void }) {
-  const [query, setQuery] = useState('');
-  const [group, setGroup] = useState<MuscleGroup | null>(null);
-  const q = query.trim().toLowerCase();
-  const list = EXERCISES.filter((e) => allowed(e) && !exclude.has(e.id) && (!group || e.muscleGroup === group) && (!q || e.name.toLowerCase().includes(q)));
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.sheetBackdrop}>
-        <View style={styles.sheet}>
-          <View style={styles.sheetHead}>
-            <AppText variant="heading" style={styles.flex}>Übung hinzufügen</AppText>
-            <IconBtn label="Schließen" onPress={onClose}><X size={22} color={colors.text} /></IconBtn>
-          </View>
-          <View style={styles.search}>
-            <Search size={18} color={colors.textSecondary} />
-            <TextInput value={query} onChangeText={setQuery} placeholder="Suchen" placeholderTextColor={colors.textSecondary} accessibilityLabel="Übung suchen" style={styles.searchInput} />
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.noGrow} contentContainerStyle={styles.chipsRow}>
-            <Chip label="Alle" selected={!group} onPress={() => setGroup(null)} />
-            {GROUPS.map((g) => <Chip key={g} label={muscleLabels[g]} selected={group === g} onPress={() => setGroup(g)} />)}
-          </ScrollView>
-          <ScrollView style={styles.flex} contentContainerStyle={styles.pickList}>
-            {list.length === 0 ? <AppText tone="secondary">Keine passende Übung mit deinem Equipment.</AppText> : null}
-            {list.map((e) => (
-              <Pressable key={e.id} onPress={() => onPick(e)} accessibilityRole="button" accessibilityLabel={`${e.name} hinzufügen`} style={styles.pickRow}>
-                <View style={styles.flex}>
-                  <AppText>{e.name}</AppText>
-                  <AppText variant="caption" tone="secondary">{musclesOf(e.id).primary.map((m) => MUSCLE_LABELS[m]).join(', ') || 'Mobilität'}</AppText>
-                </View>
-                <Plus size={20} color={colors.accent} />
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
   );
 }
 
