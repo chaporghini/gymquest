@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
-import { CloudOff, Pencil, RotateCcw, Trash } from 'lucide-react-native';
+import { ChevronRight, Cloud, CloudOff, Pencil, RotateCcw, Trash } from 'lucide-react-native';
 import { useState } from 'react';
-import { StyleSheet, Switch, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { AppText, Button, Card, Chip, ConfirmDialog, LevelBadge, Screen, SectionHeader } from '@/components';
 import { formatDate } from '@/domain/dates';
@@ -13,12 +13,11 @@ const REST_OPTIONS: (number | null)[] = [null, 60, 90, 120, 180];
 
 export default function Profile() {
   const app = useApp();
-  const { profile, settings, level, rank, sync } = app;
+  const { profile, settings, level, rank, cloud } = app;
   const [dialog, setDialog] = useState<'regenerate' | 'reset' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const syncStatus = sync.status();
 
   if (!profile) return null;
 
@@ -105,15 +104,22 @@ export default function Profile() {
       </Card>
 
       <SectionHeader title="Daten & Synchronisierung" />
-      <Card style={styles.syncCard}>
-        <CloudOff size={20} color={colors.warning} />
-        <View style={styles.flex}>
-          <AppText variant="bodyStrong">{sync.name}</AppText>
-          <AppText variant="small" tone="secondary">
-            {syncStatus.state === 'local-only' ? syncStatus.message : 'Synchronisierung aktiv.'} Ein Konto mit Cloud-Backup (Supabase) ist vorbereitet, aber noch nicht eingerichtet.
-          </AppText>
-        </View>
-      </Card>
+      <Pressable onPress={() => router.push('/account')} accessibilityRole="button" accessibilityLabel="Konto und Datensicherung öffnen">
+        <Card style={styles.syncCard}>
+          {cloud.user ? <Cloud size={20} color={colors.accent} /> : <CloudOff size={20} color={colors.warning} />}
+          <View style={styles.flex}>
+            <AppText variant="bodyStrong">{cloud.user ? 'Cloud-Sync aktiv' : 'Nur auf diesem Gerät'}</AppText>
+            <AppText variant="small" tone="secondary" numberOfLines={2}>
+              {cloud.user
+                ? `${cloud.user.email}${cloud.phase === 'offline' ? ' · offline' : cloud.phase === 'error' ? ' · Fehler beim Abgleich' : ''}`
+                : cloud.configured
+                  ? 'Melde dich an, um iPhone und MacBook abzugleichen. Backup als Datei möglich.'
+                  : 'Backup als Datei möglich. Cloud-Sync ist in dieser Version nicht eingerichtet.'}
+            </AppText>
+          </View>
+          <ChevronRight size={18} color={colors.textSecondary} />
+        </Card>
+      </Pressable>
       <Button label="Alle Daten löschen" icon={Trash} variant="danger" onPress={() => setDialog('reset')} />
 
       {notice ? <AppText tone="accent" accessibilityLiveRegion="polite">{notice}</AppText> : null}
@@ -135,7 +141,7 @@ export default function Profile() {
       <ConfirmDialog
         visible={dialog === 'reset'}
         title="Alle Daten löschen?"
-        message="Profil, Plan, Trainingshistorie, XP und Achievements werden unwiderruflich von diesem Gerät gelöscht."
+        message={`Profil, Plan, Trainingshistorie, XP und Achievements werden unwiderruflich von diesem Gerät gelöscht.${cloud.user ? ' Du wirst abgemeldet, die Daten in der Cloud bleiben erhalten.' : ''}`}
         confirmLabel="Endgültig löschen"
         destructive
         loading={busy}

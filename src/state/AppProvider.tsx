@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Platform } from 'react-native';
 
+import { createBackup, parseBackup, restoreBackup, type Backup } from '@/data/backup';
 import { BrowserGymRepository } from '@/data/browserRepository';
 import { EXERCISES } from '@/data/exercises';
 import { DEFAULT_SETTINGS, SqliteGymRepository, type GymRepository } from '@/data/db/repository';
-import { createSyncAdapter, type SyncAdapter } from '@/data/sync';
+import { TrackingRepository } from '@/data/sync';
 import { createId } from '@/domain/dates';
 import { generateTrainingPlan } from '@/domain/planGenerator';
 import { DEFAULT_PROFILE_FORM, profileFromForm, type ProfileForm } from '@/domain/profileSchema';
@@ -12,6 +14,7 @@ import { getRank, type Rank } from '@/domain/ranks';
 import type { ActiveWorkout, Profile, Settings, TrainingPlan, WorkoutSession, XpEvent } from '@/domain/types';
 import { createActiveWorkout, finishWorkout, lastSetsByExercise } from '@/domain/workout';
 import { getLevelProgress, type LevelProgress, type WorkoutXpBreakdown } from '@/domain/xp';
+import { useCloudSync, type CloudSync } from './useCloudSync';
 
 export interface RewardSummary {
   session: WorkoutSession;
@@ -36,7 +39,7 @@ interface AppContextValue {
   level: LevelProgress;
   rank: Rank;
   lastReward: RewardSummary | null;
-  sync: SyncAdapter;
+  cloud: CloudSync;
   completeOnboarding: (form: ProfileForm) => Promise<void>;
   skipOnboarding: () => Promise<void>;
   updateProfile: (form: ProfileForm, regeneratePlan: boolean) => Promise<void>;
@@ -48,19 +51,23 @@ interface AppContextValue {
   discardWorkout: () => Promise<void>;
   completeWorkout: () => Promise<RewardSummary>;
   resetAll: () => Promise<void>;
+  exportBackup: () => Promise<Backup>;
+  /** Spielt eine Sicherung ein und gibt die Anzahl der übernommenen Datensätze zurück. */
+  importBackup: (json: string) => Promise<number>;
 }
 
 function createRepository(): GymRepository {
-  // Für die Web-Vorschau ohne Server: Daten im Browser statt in SQLite (siehe browserRepository.ts).
-  if (process.env.EXPO_PUBLIC_STORAGE === 'browser') return new BrowserGymRepository();
+  // Web-App (auch installiert auf iPhone/Mac): Daten im Browser. SQLite im Browser bräuchte
+  // spezielle Server-Header, die GitHub Pages nicht setzt.
+  if (Platform.OS === 'web' || process.env.EXPO_PUBLIC_STORAGE === 'browser') return new BrowserGymRepository();
   return new SqliteGymRepository();
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children, repository }: { children: ReactNode; repository?: GymRepository }) {
-  const repo = useMemo(() => repository ?? createRepository(), [repository]);
-  const sync = useMemo(() => createSyncAdapter(), []);
+  // Alle Schreibzugriffe der App laufen über TrackingRepository, damit sie in die Cloud übertragen werden.
+  const repo = useMemo(() => new TrackingRepository(repository ?? createRepository()), [repository]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -111,6 +118,26 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
       cancelled = true;
     };
   }, [repo, loadKey]);
+
+  // Nach dem Abgleich mit der Cloud: gespeicherte Daten neu lesen, ohne Ladebildschirm.
+  // Das laufende Training bleibt unangetastet, es wird nicht synchronisiert.
+  const reloadSynced = useCallback(async () => {
+    const [p, s, pl, ss, xp] = await Promise.all([
+      repo.getProfile(),
+      repo.getSettings(),
+      repo.getActivePlan(),
+      repo.listSessions(),
+      repo.listXpEvents(),
+    ]);
+    setProfile(p);
+    setSettings(s);
+    setPlan(pl);
+    setSessions(ss);
+    setXpEvents(xp);
+  }, [repo]);
+
+  const cloud = useCloudSync(repo, reloadSynced);
+  const { signOut: cloudSignOut, syncNow: cloudSyncNow } = cloud;
 
   const totalXp = useMemo(() => xpEvents.reduce((n, e) => n + e.amount, 0), [xpEvents]);
   const level = useMemo(() => getLevelProgress(totalXp), [totalXp]);
@@ -235,6 +262,8 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
 
   const resetAll = useCallback(async () => {
     await writeQueue.current;
+    // Abmelden, sonst würde der nächste Abgleich die Cloud-Daten sofort wiederherstellen.
+    await cloudSignOut();
     await repo.resetAll();
     activeRef.current = null;
     setProfile(null);
@@ -244,7 +273,16 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
     setXpEvents([]);
     setActiveWorkout(null);
     setLastReward(null);
-  }, [repo]);
+  }, [repo, cloudSignOut]);
+
+  const exportBackup = useCallback(() => createBackup(repo.inner), [repo]);
+
+  const importBackup = useCallback(async (json: string) => {
+    const result = await restoreBackup(repo.inner, parseBackup(json));
+    await reloadSynced();
+    void cloudSyncNow();
+    return result.changed;
+  }, [repo, reloadSynced, cloudSyncNow]);
 
   const value: AppContextValue = {
     status,
@@ -259,7 +297,7 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
     level,
     rank,
     lastReward,
-    sync,
+    cloud,
     completeOnboarding,
     skipOnboarding,
     updateProfile,
@@ -271,6 +309,8 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
     discardWorkout,
     completeWorkout,
     resetAll,
+    exportBackup,
+    importBackup,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

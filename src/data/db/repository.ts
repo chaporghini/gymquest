@@ -5,7 +5,7 @@ import { getDatabase } from './database';
 
 /**
  * Datenzugriff der App. Die UI kennt nur dieses Interface, nicht SQLite.
- * Eine spätere Supabase-Anbindung synchronisiert über `SyncAdapter` (siehe sync.ts).
+ * Die Supabase-Synchronisierung (src/data/sync) baut ausschließlich auf diesem Interface auf.
  */
 export interface GymRepository {
   getProfile(): Promise<Profile | null>;
@@ -20,9 +20,14 @@ export interface GymRepository {
   saveSession(session: WorkoutSession, xpEvents: XpEvent[]): Promise<void>;
   listXpEvents(): Promise<XpEvent[]>;
   addXpEvents(events: XpEvent[]): Promise<void>;
+  /** Übernimmt Trainings von anderen Geräten oder aus einem Backup. Vorhandene IDs werden übersprungen. */
+  importSessions(sessions: WorkoutSession[]): Promise<void>;
   getActiveWorkout(): Promise<ActiveWorkout | null>;
   saveActiveWorkout(workout: ActiveWorkout | null): Promise<void>;
   resetAll(): Promise<void>;
+  /** Interne Verwaltungsdaten, z. B. der Stand der Synchronisierung. */
+  getMeta<T>(key: string): Promise<T | null>;
+  setMeta(key: string, value: unknown): Promise<void>;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -160,30 +165,20 @@ export class SqliteGymRepository implements GymRepository {
   async saveSession(session: WorkoutSession, xpEvents: XpEvent[]) {
     const db = await this.open();
     await db.withTransactionAsync(async () => {
-      await db.runAsync(
-        'INSERT INTO workout_sessions (id, plan_day_id, name, started_at, finished_at, duration_sec, xp_earned) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        session.id,
-        session.planDayId,
-        session.name,
-        session.startedAt,
-        session.finishedAt,
-        session.durationSec,
-        session.xpEarned,
-      );
-      for (const set of session.sets) {
-        await db.runAsync(
-          'INSERT INTO set_logs (session_id, exercise_id, set_index, reps, weight_kg, duration_sec, completed) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          session.id,
-          set.exerciseId,
-          set.setIndex,
-          set.reps,
-          set.weightKg,
-          set.durationSec,
-          set.completed ? 1 : 0,
-        );
-      }
+      await insertSession(db, session);
       await insertXp(db, xpEvents);
       await db.runAsync('DELETE FROM kv WHERE key = ?', KEY_ACTIVE_WORKOUT);
+    });
+  }
+
+  async importSessions(sessions: WorkoutSession[]) {
+    if (sessions.length === 0) return;
+    const db = await this.open();
+    await db.withTransactionAsync(async () => {
+      for (const session of sessions) {
+        const exists = await db.getFirstAsync('SELECT id FROM workout_sessions WHERE id = ?', session.id);
+        if (!exists) await insertSession(db, session);
+      }
     });
   }
 
@@ -212,6 +207,39 @@ export class SqliteGymRepository implements GymRepository {
     await db.withTransactionAsync(async () => {
       await db.execAsync('DELETE FROM set_logs; DELETE FROM workout_sessions; DELETE FROM xp_events; DELETE FROM plans; DELETE FROM kv;');
     });
+  }
+
+  getMeta<T>(key: string) {
+    return this.getKv<T>(`meta:${key}`);
+  }
+
+  setMeta(key: string, value: unknown) {
+    return this.setKv(`meta:${key}`, value);
+  }
+}
+
+async function insertSession(db: SQLiteDatabase, session: WorkoutSession) {
+  await db.runAsync(
+    'INSERT INTO workout_sessions (id, plan_day_id, name, started_at, finished_at, duration_sec, xp_earned) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    session.id,
+    session.planDayId,
+    session.name,
+    session.startedAt,
+    session.finishedAt,
+    session.durationSec,
+    session.xpEarned,
+  );
+  for (const set of session.sets) {
+    await db.runAsync(
+      'INSERT INTO set_logs (session_id, exercise_id, set_index, reps, weight_kg, duration_sec, completed) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      session.id,
+      set.exerciseId,
+      set.setIndex,
+      set.reps,
+      set.weightKg,
+      set.durationSec,
+      set.completed ? 1 : 0,
+    );
   }
 }
 

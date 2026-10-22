@@ -80,10 +80,10 @@ function RootNavigator() {
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-      <Stack.Protected guard={!profile}>
+      <Stack.Protected guard={!profile} redirectTo="/">
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
       </Stack.Protected>
-      <Stack.Protected guard={!!profile}>
+      <Stack.Protected guard={!!profile} redirectTo="/onboarding">
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="workout/active" options={{ presentation: 'fullScreenModal', gestureEnabled: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="workout/summary" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
@@ -97,6 +97,7 @@ function RootNavigator() {
         <Stack.Screen name="quest/[id]" options={{ ...header, title: 'Quest' }} />
         <Stack.Screen name="progress" options={{ ...header, title: 'XP & Ränge' }} />
       </Stack.Protected>
+      <Stack.Screen name="account" options={{ ...header, title: 'Konto & Daten' }} />
       <Stack.Screen name="+not-found" options={{ ...header, title: 'Nicht gefunden' }} />
     </Stack>
   );

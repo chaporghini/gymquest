@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { router } from 'expo-router';
 import { ArrowLeft, Swords } from 'lucide-react-native';
 import { useState } from 'react';
 import { useForm, type FieldPath } from 'react-hook-form';
@@ -28,7 +29,7 @@ const STEPS: Step[] = [
 ];
 
 export default function Onboarding() {
-  const { completeOnboarding, skipOnboarding } = useApp();
+  const { completeOnboarding, skipOnboarding, cloud } = useApp();
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -113,6 +114,14 @@ export default function Onboarding() {
       </View>
 
       {step === 0 && <NameField {...fieldProps} />}
+      {step === 0 && (
+        <Pressable onPress={() => router.push('/account')} accessibilityRole="button" style={styles.existing}>
+          <AppText variant="small" tone="secondary">
+            {cloud.configured ? 'Schon auf einem anderen Gerät gespielt? ' : 'Du hast eine Sicherung? '}
+            <AppText variant="small" tone="accent" style={styles.bold}>{cloud.configured ? 'Anmelden' : 'Backup einspielen'}</AppText>
+          </AppText>
+        </Pressable>
+      )}
       {step === 1 && <ExperienceField {...fieldProps} />}
       {step === 2 && <GoalField {...fieldProps} />}
       {step === 3 && <ScheduleFields {...fieldProps} />}
@@ -147,6 +156,7 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   iconBtn: { width: 44, height: 44, justifyContent: 'center' },
   skip: { minHeight: 44, justifyContent: 'center' },
+  existing: { minHeight: 44, justifyContent: 'center' },
   bold: { fontWeight: '700' },
   hero: { alignItems: 'flex-start', marginTop: spacing.lg },
   heroIcon: { width: 72, height: 72, borderRadius: radius.xl, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },

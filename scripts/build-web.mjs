@@ -1,0 +1,76 @@
+// Baut GYMQUEST als installierbare Web-App (PWA) nach dist/.
+//
+//   npm run build:web
+//
+// Umgebungsvariablen (optional):
+//   GYMQUEST_BASE_URL          Unterpfad, z. B. "/gymquest" für https://name.github.io/gymquest/
+//   EXPO_PUBLIC_SUPABASE_URL   Supabase Project URL (ohne = nur lokal + Backup-Datei)
+//   EXPO_PUBLIC_SUPABASE_KEY   Supabase publishable/anon key
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { copyFileSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
+
+const root = new URL('..', import.meta.url).pathname;
+const dist = join(root, 'dist');
+const base = `${(process.env.GYMQUEST_BASE_URL || '').replace(/\/+$/, '')}/`;
+
+rmSync(dist, { recursive: true, force: true });
+const result = spawnSync('npx', ['expo', 'export', '--platform', 'web', '--output-dir', 'dist', '--clear'], {
+  cwd: root,
+  stdio: 'inherit',
+  env: process.env,
+});
+if (result.status !== 0) process.exit(result.status ?? 1);
+
+// 1. index.html: Sprache, App-Meta-Tags, Manifest, Icons, Service Worker
+const indexPath = join(dist, 'index.html');
+let html = readFileSync(indexPath, 'utf8');
+html = html.replace('<html lang="en">', '<html lang="de">');
+const head = `
+    <meta name="description" content="Fitness-RPG: Trainingsplan, XP, Level, Quests und Ränge." />
+    <meta name="theme-color" content="#0B0D0E" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="GYMQUEST" />
+    <link rel="manifest" href="${base}manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="${base}icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="48x48" href="${base}icons/favicon-48.png" />
+    <style>html, body { background-color: #0B0D0E; color-scheme: dark; }</style>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('${base}sw.js', { scope: '${base}' }).catch(function (e) { console.warn('Service Worker nicht registriert', e); });
+        });
+      }
+    </script>
+  `;
+html = html.replace('</head>', `${head}</head>`);
+writeFileSync(indexPath, html);
+
+// 2. Für GitHub Pages: unbekannte Pfade (z. B. /gymquest/training) liefern ebenfalls die App
+copyFileSync(indexPath, join(dist, '404.html'));
+writeFileSync(join(dist, '.nojekyll'), '');
+
+// 3. Service Worker mit Liste aller Dateien
+const skip = (p) => p === 'sw.js' || p === '404.html' || p === '.nojekyll' || p.startsWith('assets/node_modules/expo-sqlite/') || p === 'icons/icon-1024.png';
+const files = [];
+(function walk(dir) {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) walk(full);
+    else files.push(relative(dist, full).split(sep).join('/'));
+  }
+})(dist);
+const precache = files.filter((p) => !skip(p)).sort();
+const hash = createHash('sha256');
+for (const p of precache) hash.update(p).update(readFileSync(join(dist, p)));
+const version = hash.digest('hex').slice(0, 12);
+const sw = readFileSync(join(root, 'scripts', 'sw-template.js'), 'utf8')
+  .replace('__VERSION__', version)
+  .replace('= __FILES__;', () => `= ${JSON.stringify(precache)};`);
+writeFileSync(join(dist, 'sw.js'), sw);
+
+const cloud = process.env.EXPO_PUBLIC_SUPABASE_URL && process.env.EXPO_PUBLIC_SUPABASE_KEY ? 'mit Cloud-Sync' : 'ohne Cloud-Sync (nur lokal)';
+console.log(`\nWeb-App gebaut: dist/ · Pfad ${base} · ${precache.length} Dateien offline verfügbar · Version ${version} · ${cloud}`);

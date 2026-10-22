@@ -1,87 +1,39 @@
-# Spätere Supabase-Anbindung
+# Supabase-Abgleich: technische Details
 
-**Status: nicht eingerichtet.** Die App nutzt `LocalOnlySyncAdapter` (`src/data/sync.ts`), der absichtlich nichts tut. Es sind keine Zugangsdaten im Projekt.
+Einrichtung für Endnutzer: siehe [ANLEITUNG.md](ANLEITUNG.md). Diese Seite beschreibt, wie der Abgleich funktioniert.
 
-## Vorgehen
+## Datenmodell
 
-1. Supabase-Projekt anlegen, E-Mail- oder Apple-Login aktivieren.
-2. `.env` anlegen (nicht committen):
-   ```
-   EXPO_PUBLIC_SUPABASE_URL=https://<projekt>.supabase.co
-   EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
-   ```
-3. `npx expo install @supabase/supabase-js` und einen `SupabaseSyncAdapter` implementieren, der `SyncAdapter` erfüllt. In `createSyncAdapter()` zurückgeben, wenn beide Variablen gesetzt sind.
-4. Login-Screen ergänzen; lokale Daten beim ersten Login hochladen.
+Eine Tabelle `public.gymquest_records` ([supabase/schema.sql](../supabase/schema.sql)) mit einer Zeile pro Datensatz:
 
-## Vorgeschlagenes Schema (PostgreSQL)
+| Spalte | Bedeutung |
+| --- | --- |
+| `user_id` | Konto (`auth.uid()`), Teil des Primärschlüssels |
+| `kind` | `profile`, `settings`, `plan`, `session`, `xp` |
+| `id` | `main` bei Profil/Einstellungen/Plan, Trainings-ID, bei XP `quelle:referenz` (z. B. `quest:weekly_workouts:2026-W43`) |
+| `data` | Der Datensatz als JSON, genau wie in der App (`src/domain/types.ts`) |
+| `modified_at` | Änderungszeitpunkt auf dem Gerät |
+| `updated_at` | Serverzeit, wird per Trigger gesetzt; Grundlage für „was ist neu seit …“ |
 
-```sql
-create table profiles (
-  user_id uuid primary key references auth.users on delete cascade,
-  data jsonb not null,
-  updated_at timestamptz not null default now()
-);
+Row Level Security: Jede angemeldete Person kann nur Zeilen mit ihrer eigenen `user_id` lesen, anlegen, ändern und löschen. Ein Trigger verwirft Updates mit älterem `modified_at`, damit ein Gerät mit veraltetem Stand nichts Neueres überschreibt.
 
-create table plans (
-  id text primary key,
-  user_id uuid not null references auth.users on delete cascade,
-  data jsonb not null,
-  is_active boolean not null default false,
-  updated_at timestamptz not null default now()
-);
+## Ablauf (`src/data/sync/engine.ts`, `syncOnce`)
 
-create table workout_sessions (
-  id text primary key,
-  user_id uuid not null references auth.users on delete cascade,
-  plan_day_id text,
-  name text not null,
-  started_at timestamptz not null,
-  finished_at timestamptz not null,
-  duration_sec int not null,
-  xp_earned int not null
-);
+1. **Merken:** Die App schreibt nur über `TrackingRepository`. Jede Änderung wird in den Metadaten (`meta:sync`) als „noch hochzuladen“ markiert.
+2. **Holen:** Alle Zeilen mit `updated_at` nach dem letzten Stand (mit einer Minute Überlappung) werden geladen und zusammengeführt:
+   - Trainings: fehlende werden ergänzt (Trainings ändern sich nach dem Abschluss nicht).
+   - XP: fehlende werden ergänzt; dieselbe Belohnung (gleiche Quelle + Referenz) gibt es nur einmal.
+   - Profil, Einstellungen, Plan: der neuere `modified_at` gewinnt. Beim **ersten** Abgleich eines Geräts mit einem Konto gewinnt die Cloud, damit ein versehentliches Onboarding auf dem neuen Gerät den echten Plan nicht ersetzt.
+3. **Hochladen:** Beim ersten Abgleich alles, danach nur markierte Datensätze (`upsert`).
 
-create table set_logs (
-  id bigserial primary key,
-  session_id text not null references workout_sessions on delete cascade,
-  exercise_id text not null,
-  set_index int not null,
-  reps int,
-  weight_kg numeric,
-  duration_sec int,
-  completed boolean not null
-);
+Das laufende Training wird bewusst nicht übertragen; erst das beendete Training.
 
-create table xp_events (
-  id text primary key,
-  user_id uuid not null references auth.users on delete cascade,
-  source text not null,
-  ref_id text not null,
-  amount int not null,
-  label text not null,
-  created_at timestamptz not null,
-  unique (user_id, source, ref_id)
-);
+Ausgelöst wird ein Abgleich in `src/state/useCloudSync.ts`: nach der Anmeldung, 2 s nach jeder Änderung, beim Zurückkehren in die App, beim Wiederherstellen der Verbindung und alle 5 Minuten.
 
--- Row Level Security: jede Person sieht nur ihre eigenen Daten
-alter table profiles enable row level security;
-alter table plans enable row level security;
-alter table workout_sessions enable row level security;
-alter table set_logs enable row level security;
-alter table xp_events enable row level security;
+## Konfiguration
 
-create policy "own" on profiles for all using (auth.uid() = user_id);
-create policy "own" on plans for all using (auth.uid() = user_id);
-create policy "own" on workout_sessions for all using (auth.uid() = user_id);
-create policy "own" on xp_events for all using (auth.uid() = user_id);
-create policy "own" on set_logs for all using (
-  exists (select 1 from workout_sessions s where s.id = session_id and s.user_id = auth.uid())
-);
-```
+`EXPO_PUBLIC_SUPABASE_URL` und `EXPO_PUBLIC_SUPABASE_KEY` (Publishable/anon key) in `.env` oder als GitHub-Variablen `SUPABASE_URL`/`SUPABASE_KEY`. Fehlen sie, zeigt die App „Cloud-Sync ist nicht eingerichtet“ und arbeitet nur lokal.
 
-## Sync-Strategie
+## Tests
 
-- Lokale Tabellen haben eine Spalte `synced_at`. `push()` lädt alle Zeilen mit `synced_at IS NULL` hoch und setzt danach den Zeitstempel.
-- Trainings und XP-Ereignisse werden nur angehängt, nie geändert → konfliktfrei.
-- Profil und Plan: „last write wins“ über `updated_at`.
-- XP werden serverseitig nicht neu berechnet; die Eindeutigkeit `(user_id, source, ref_id)` verhindert doppelte Belohnungen.
+`src/data/__tests__/sync.test.ts` simuliert zwei Geräte und einen Server mit demselben Verhalten wie die Tabelle samt Trigger (Offline-Phasen, Konflikte, doppelte Belohnungen, erste Anmeldung, Backup).

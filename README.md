@@ -2,7 +2,11 @@
 
 Fitness-App mit RPG-Elementen: Durch regelmäßiges, sicheres Training sammelst du XP, steigst im Level auf, schaltest Ränge frei und erfüllst Wochenquests und Achievements.
 
-Die App läuft **vollständig lokal** (SQLite). Es gibt keinen Server und keine erfundenen Zugangsdaten. Eine spätere Synchronisierung mit Supabase ist als Schnittstelle vorbereitet (siehe [docs/SUPABASE.md](docs/SUPABASE.md)).
+Die App funktioniert **offline und ohne Konto** vollständig. Optional gleicht sie über ein Supabase-Konto zwischen iPhone und MacBook ab, und sie lässt sich als **installierbare Web-App** (Homescreen/Dock) über GitHub Pages veröffentlichen.
+
+**➜ Einrichtung als App auf iPhone und Mac, Schritt für Schritt: [docs/ANLEITUNG.md](docs/ANLEITUNG.md)**
+
+Zugangsdaten stehen nie im Code; sie kommen aus `.env` (lokal) bzw. GitHub-Variablen (siehe `.env.example`).
 
 ---
 
@@ -27,6 +31,7 @@ npm install
 | Wie | Befehl | Hinweis |
 | --- | --- | --- |
 | **Im Browser auf dem Mac** (am schnellsten) | `npm run web` | Öffnet <http://localhost:8081>. Daten bleiben im Browser gespeichert. |
+| **Als installierbare Web-App bauen** | `npm run build:web` | Ergebnis in `dist/`. Veröffentlichen automatisch per GitHub Actions, siehe Anleitung. |
 | **Auf dem iPhone mit Expo Go** | `npm start` | QR-Code mit der iPhone-Kamera scannen. iPhone und Mac müssen im selben WLAN sein. |
 | **Im iOS-Simulator** | `npm run ios` | Benötigt Xcode. Alternativ `npm start` und dann `i` drücken. |
 
@@ -38,7 +43,7 @@ Beenden mit `Ctrl + C` im Terminal.
 ### 4. Tests und Prüfungen
 
 ```bash
-npm test          # 35 Tests für XP, Level, Planerstellung, Quests, Trainingsablauf
+npm test          # 54 Tests: XP, Level, Planerstellung, Quests, Trainingsablauf, Sync, Backup
 npm run typecheck # TypeScript
 npm run lint      # ESLint
 ```
@@ -56,6 +61,9 @@ npm run lint      # ESLint
 - **Quests, Achievements, Ränge**: 4 Wochenquests, 13 Achievements, 7 Ränge (Rekrut bis Legende), Level-up-Animation.
 - **Statistiken**: Kennzahlen, Diagramm der letzten 8 Wochen (Trainings, Sätze, Minuten), Bestleistungen, Trainingshistorie mit Details.
 - **Profil & Einstellungen**: Profil bearbeiten und Plan neu erstellen, haptisches Feedback, feste Pausenzeit, alle Daten löschen.
+- **Konto & Sync** (optional, Supabase): Registrieren/Anmelden mit E-Mail, automatischer Abgleich im Hintergrund, offline zuerst. Trainings und XP werden zusammengeführt, bei Profil/Einstellungen/Plan gewinnt der neuere Stand.
+- **Backup**: Export aller Daten als JSON-Datei, Einspielen ohne Datenverlust.
+- **Installierbar (PWA)**: App-Symbol, Vollbild, Start ohne Internet per Service Worker.
 
 ### XP-Regeln (bewusst „sicher“)
 
@@ -88,15 +96,19 @@ src/
 ├── data/
 │   ├── exercises.ts     Übungsbibliothek
 │   ├── db/              SQLite-Schema, Migrationen, Repository
-│   └── sync.ts          Sync-Schnittstelle (aktuell: nur lokal)
-├── state/AppProvider.tsx  Verbindet Domäne, Repository und UI
+│   ├── browserRepository.ts  Speicherung im Browser (Web-App)
+│   ├── backup.ts        Export/Import als JSON
+│   └── sync/            Abgleich: Änderungs-Tracking, Zusammenführen, Supabase-Anbindung
+├── state/               AppProvider (Domäne + Repository + UI), useCloudSync (Konto & Abgleich)
 ├── components/          Designsystem (Button, Card, ProgressBar, XPBar, LevelBadge, …)
 ├── theme/tokens.ts      Farben, Abstände, Typografie
 └── i18n/labels.ts       Deutsche Bezeichnungen
 ```
 
 - **Expo SDK 58**, React Native, TypeScript, Expo Router
-- **expo-sqlite** für die dauerhafte lokale Speicherung (Tabellen `workout_sessions`, `set_logs`, `xp_events`, `plans`, `kv`)
+- **expo-sqlite** für die dauerhafte lokale Speicherung auf iPhone/Android (Tabellen `workout_sessions`, `set_logs`, `xp_events`, `plans`, `kv`); in der Web-App **localStorage**
+- **Supabase** (`@supabase/supabase-js`) für Konto und Abgleich, Schema in `supabase/schema.sql`, Details in [docs/SUPABASE.md](docs/SUPABASE.md)
+- **PWA**: `scripts/build-web.mjs` ergänzt Manifest, Icons und Service Worker; `.github/workflows/deploy-web.yml` veröffentlicht auf GitHub Pages
 - **React Hook Form + Zod** für Formulare, **lucide-react-native** für Icons, **react-native-gifted-charts** für Diagramme
 - **Jest (jest-expo)** für Tests
 
@@ -104,5 +116,5 @@ Die UI greift nur über das Interface `GymRepository` auf Daten zu; die Domänen
 
 ## Hinweise
 
-- App-Icon und Splash-Bild sind noch die Expo-Platzhalter.
+- Das App-Symbol der Web-App liegt in `public/icons/`. Für eine native iOS-App (Expo) sind Icon und Splash noch die Expo-Platzhalter.
 - GYMQUEST ersetzt keine medizinische Beratung.
