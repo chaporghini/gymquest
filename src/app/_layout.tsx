@@ -1,18 +1,104 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { TriangleAlert } from 'lucide-react-native';
+import { useEffect } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { AppText, EmptyState } from '@/components';
+import { AppProvider, useApp } from '@/state/AppProvider';
+import { colors } from '@/theme/tokens';
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+const navigationTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    primary: colors.accent,
+    background: colors.background,
+    card: colors.background,
+    text: colors.text,
+    border: colors.border,
+    notification: colors.accent,
+  },
+};
+
+export default function RootLayout() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider value={navigationTheme}>
+        <AppProvider>
+          <StatusBar style="light" />
+          <RootNavigator />
+        </AppProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
+
+function RootNavigator() {
+  const { status, error, retry, profile } = useApp();
+
+  useEffect(() => {
+    if (status !== 'loading') SplashScreen.hideAsync().catch(() => {});
+  }, [status]);
+
+  if (status === 'loading') {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.accent} size="large" />
+        <AppText tone="secondary">GYMQUEST lädt …</AppText>
+      </View>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <View style={styles.center}>
+        <EmptyState
+          icon={TriangleAlert}
+          tone="error"
+          title="Daten konnten nicht geladen werden"
+          message={`Die lokale Datenbank ist nicht erreichbar. Deine gespeicherten Daten bleiben erhalten.\n\nDetails: ${error ?? 'unbekannter Fehler'}`}
+          actionLabel="Erneut versuchen"
+          onAction={retry}
+        />
+      </View>
+    );
+  }
+
+  const header = {
+    headerShown: true,
+    headerStyle: { backgroundColor: colors.background },
+    headerTintColor: colors.text,
+    headerTitleStyle: { fontWeight: '700' as const },
+    headerShadowVisible: false,
+    headerBackButtonDisplayMode: 'minimal' as const,
+  };
+
+  return (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+      <Stack.Protected guard={!profile}>
+        <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!!profile}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="workout/active" options={{ presentation: 'fullScreenModal', gestureEnabled: false, animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="workout/summary" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
+        <Stack.Screen name="plan/edit" options={{ ...header, title: 'Plan bearbeiten' }} />
+        <Stack.Screen name="plan/day/[dayId]" options={{ ...header, title: 'Einheit bearbeiten' }} />
+        <Stack.Screen name="library/index" options={{ ...header, title: 'Übungsbibliothek' }} />
+        <Stack.Screen name="library/[id]" options={{ ...header, title: 'Übung' }} />
+        <Stack.Screen name="history/[id]" options={{ ...header, title: 'Training' }} />
+        <Stack.Screen name="profile/edit" options={{ ...header, title: 'Profil bearbeiten' }} />
+      </Stack.Protected>
+      <Stack.Screen name="+not-found" options={{ ...header, title: 'Nicht gefunden' }} />
+    </Stack>
+  );
+}
+
+const styles = StyleSheet.create({
+  center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
+});
