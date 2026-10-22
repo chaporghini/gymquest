@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
+import { BrowserGymRepository } from '@/data/browserRepository';
 import { EXERCISES } from '@/data/exercises';
 import { DEFAULT_SETTINGS, SqliteGymRepository, type GymRepository } from '@/data/db/repository';
 import { createSyncAdapter, type SyncAdapter } from '@/data/sync';
@@ -49,10 +50,16 @@ interface AppContextValue {
   resetAll: () => Promise<void>;
 }
 
+function createRepository(): GymRepository {
+  // Für die Web-Vorschau ohne Server: Daten im Browser statt in SQLite (siehe browserRepository.ts).
+  if (process.env.EXPO_PUBLIC_STORAGE === 'browser') return new BrowserGymRepository();
+  return new SqliteGymRepository();
+}
+
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children, repository }: { children: ReactNode; repository?: GymRepository }) {
-  const repo = useMemo(() => repository ?? new SqliteGymRepository(), [repository]);
+  const repo = useMemo(() => repository ?? createRepository(), [repository]);
   const sync = useMemo(() => createSyncAdapter(), []);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
