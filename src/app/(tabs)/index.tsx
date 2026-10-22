@@ -103,7 +103,6 @@ export default function Home() {
           day={next.day}
           subtitle={nextSubtitle}
           highlight={next.isToday}
-          showExercises
           onPress={() => router.push({ pathname: '/day/[dayId]', params: { dayId: next.day.id } })}
           onStart={start}
           startLabel={next.nextWeek ? 'Trotzdem jetzt trainieren' : 'Training starten'}
@@ -182,7 +181,7 @@ export default function Home() {
         </View>
       </Card>
 
-       <SectionHeader title="Nächste Quest" actionLabel="Alle Quests" onAction={() => router.push('/quests')} />
+      <SectionHeader title="Nächste Quest" actionLabel="Alle Quests" onAction={() => router.push('/quests')} />
       {activeQuests.length > 0 ? (
         <View style={styles.gap}>
           {activeQuests.map((q) => (

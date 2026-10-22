@@ -1,27 +1,18 @@
 import { router } from 'expo-router';
-import { ChevronRight, Cloud, CloudOff, Pencil, RotateCcw, Trash } from 'lucide-react-native';
+import { ChevronRight, Cloud, CloudOff, RotateCcw, Settings, Trash, Trophy } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText, Button, Card, Chip, ConfirmDialog, LevelBadge, Screen, SectionHeader } from '@/components';
+import { AppText, Button, Card, ConfirmDialog, LevelBadge, Screen, SectionHeader } from '@/components';
 import { formatDate } from '@/domain/dates';
-import { currentAge, loadStepFor, LOAD_TYPE_LABELS } from '@/domain/training';
-import type { LoadType } from '@/domain/types';
+import { currentAge } from '@/domain/training';
 import { equipmentLabels, experienceLabels, goalLabels, limitationLabels } from '@/i18n/labels';
 import { useApp } from '@/state/AppProvider';
 import { colors, spacing } from '@/theme/tokens';
 
-const REST_OPTIONS: (number | null)[] = [null, 60, 90, 120, 180];
-const STEP_OPTIONS: Record<Exclude<LoadType, 'bodyweight'>, number[]> = {
-  barbell: [1, 2.5, 5],
-  dumbbell: [1, 2, 2.5],
-  machine: [2.5, 5, 10],
-  kettlebell: [2, 4, 8],
-};
-
 export default function Profile() {
   const app = useApp();
-  const { profile, settings, level, rank, cloud } = app;
+  const { profile, level, rank, cloud } = app;
   const [dialog, setDialog] = useState<'regenerate' | 'reset' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,81 +68,14 @@ export default function Profile() {
           </View>
         ))}
       </Card>
-      <View style={styles.actions}>
-        <Button label="Profil bearbeiten" icon={Pencil} variant="secondary" onPress={() => router.push('/profile/edit')} style={styles.flex} />
-        <Button label="Plan neu erstellen" icon={RotateCcw} variant="secondary" onPress={() => setDialog('regenerate')} style={styles.flex} />
-      </View>
 
-      <SectionHeader title="Einstellungen" />
       <Card padded={false}>
-        <View style={styles.row}>
-          <View style={styles.flex}>
-            <AppText>Haptisches Feedback</AppText>
-            <AppText variant="small" tone="secondary">Vibration bei Satzabschluss und Pausenende</AppText>
-          </View>
-          <Switch
-            value={settings.hapticsEnabled}
-            onValueChange={(v) => run(() => app.updateSettings({ hapticsEnabled: v }))}
-            trackColor={{ true: colors.accent, false: colors.cardSecondary }}
-            thumbColor={colors.text}
-            accessibilityLabel="Haptisches Feedback"
-          />
-        </View>
-        <View style={[styles.rowStack, styles.divider]}>
-          <AppText>Pausenzeit</AppText>
-          <AppText variant="small" tone="secondary">„Plan“ nutzt die empfohlene Pause jeder Übung.</AppText>
-          <View style={styles.chips} accessibilityRole="radiogroup">
-            {REST_OPTIONS.map((r) => (
-              <Chip
-                key={String(r)}
-                role="radio"
-                label={r === null ? 'Plan' : `${r} s`}
-                selected={settings.defaultRestSeconds === r}
-                onPress={() => run(() => app.updateSettings({ defaultRestSeconds: r }))}
-              />
-            ))}
-          </View>
-        </View>
-        <View style={[styles.rowStack, styles.divider]}>
-          <AppText>Gewichtsstufen</AppText>
-          <AppText variant="small" tone="secondary">Kleinster Schritt, um den du das Gewicht an deinen Geräten erhöhen kannst. Danach richten sich Empfehlungen und die Plus/Minus-Tasten.</AppText>
-          {(Object.keys(STEP_OPTIONS) as (keyof typeof STEP_OPTIONS)[]).map((type) => (
-            <View key={type} style={styles.stepRow}>
-              <AppText variant="small" style={styles.stepLabel}>{LOAD_TYPE_LABELS[type]}</AppText>
-              <View style={styles.chipsInline} accessibilityRole="radiogroup" accessibilityLabel={`Gewichtsstufe ${LOAD_TYPE_LABELS[type]}`}>
-                {STEP_OPTIONS[type].map((v) => (
-                  <Chip
-                    key={v}
-                    role="radio"
-                    label={`${v.toLocaleString('de-DE')} kg`}
-                    selected={loadStepFor(type, settings) === v}
-                    onPress={() => run(() => app.updateSettings({ loadSteps: { ...settings.loadSteps, [type]: v } }))}
-                  />
-                ))}
-              </View>
-            </View>
-          ))}
-        </View>
+        <LinkRow icon={Settings} title="Einstellungen" hint="Pausenzeit, Gewichtsstufen, Vibration" onPress={() => router.push('/settings')} />
+        <LinkRow icon={cloud.user ? Cloud : CloudOff} iconColor={cloud.user ? colors.accent : colors.warning} title="Konto & Daten" hint={cloud.user ? `Sync aktiv · ${cloud.user.email}` : 'Nur auf diesem Gerät · Backup'} onPress={() => router.push('/account')} divider />
+        <LinkRow icon={Trophy} title="Quests & Achievements" hint={`Level ${level.level} · ${rank.name}`} onPress={() => router.push('/quests')} divider />
+        <LinkRow icon={RotateCcw} title="Plan automatisch erstellen" hint="Neuer Plan aus deinem Profil" onPress={() => setDialog('regenerate')} divider />
       </Card>
-
-      <SectionHeader title="Daten & Synchronisierung" />
-      <Pressable onPress={() => router.push('/account')} accessibilityRole="button" accessibilityLabel="Konto und Datensicherung öffnen">
-        <Card style={styles.syncCard}>
-          {cloud.user ? <Cloud size={20} color={colors.accent} /> : <CloudOff size={20} color={colors.warning} />}
-          <View style={styles.flex}>
-            <AppText variant="bodyStrong">{cloud.user ? 'Cloud-Sync aktiv' : 'Nur auf diesem Gerät'}</AppText>
-            <AppText variant="small" tone="secondary" numberOfLines={2}>
-              {cloud.user
-                ? `${cloud.user.email}${cloud.phase === 'offline' ? ' · offline' : cloud.phase === 'error' ? ' · Fehler beim Abgleich' : ''}`
-                : cloud.configured
-                  ? 'Melde dich an, um iPhone und MacBook abzugleichen. Backup als Datei möglich.'
-                  : 'Backup als Datei möglich. Cloud-Sync ist in dieser Version nicht eingerichtet.'}
-            </AppText>
-          </View>
-          <ChevronRight size={18} color={colors.textSecondary} />
-        </Card>
-      </Pressable>
-      <Button label="Alle Daten löschen" icon={Trash} variant="danger" onPress={() => setDialog('reset')} />
+      <Button label="Alle Daten löschen" icon={Trash} variant="ghost" size="sm" onPress={() => setDialog('reset')} />
 
       {notice ? <AppText tone="accent" accessibilityLiveRegion="polite">{notice}</AppText> : null}
       {error ? <AppText tone="error" accessibilityRole="alert">{error}</AppText> : null}
@@ -198,3 +122,16 @@ const styles = StyleSheet.create({
   syncCard: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
   disclaimer: { marginTop: spacing.lg },
 });
+
+function LinkRow({ icon: Icon, iconColor = colors.textSecondary, title, hint, onPress, divider }: { icon: typeof Settings; iconColor?: string; title: string; hint: string; onPress: () => void; divider?: boolean }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title} style={({ pressed }) => [styles.row, divider && styles.divider, pressed && { opacity: 0.8 }]}>
+      <Icon size={20} color={iconColor} />
+      <View style={styles.flex}>
+        <AppText>{title}</AppText>
+        <AppText variant="small" tone="secondary" numberOfLines={1}>{hint}</AppText>
+      </View>
+      <ChevronRight size={18} color={colors.textSecondary} />
+    </Pressable>
+  );
+}

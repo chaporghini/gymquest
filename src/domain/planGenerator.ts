@@ -202,3 +202,42 @@ export function generateTrainingPlan(profile: Profile, library: Exercise[], now:
     days,
   };
 }
+
+// --- Eigener Plan: Vorschläge für einzelne Tage -------------------------------
+
+export type DayFocus = 'full' | 'upper' | 'lower' | 'push' | 'pull' | 'legs' | 'mobility';
+
+export const DAY_FOCUS: Record<DayFocus, DayTemplate> = {
+  full: FULL_BODY[0],
+  upper: UPPER_LOWER[0],
+  lower: UPPER_LOWER[1],
+  push: PUSH,
+  pull: PULL,
+  legs: LEGS,
+  mobility: MOBILITY_DAY,
+};
+
+export const DAY_FOCUS_LABELS: Record<DayFocus, string> = {
+  full: 'Ganzkörper',
+  upper: 'Oberkörper',
+  lower: 'Unterkörper',
+  push: 'Drücken',
+  pull: 'Ziehen',
+  legs: 'Beine',
+  mobility: 'Mobilität',
+};
+
+/** Vorschlag für einen Trainingstag mit Schwerpunkt; `variant` sorgt für Abwechslung. */
+export function suggestDay(focus: DayFocus, profile: Profile, library: Exercise[], weekday: number, variant = 0): PlanDay {
+  // Mehrere Tage mit gleichem Schwerpunkt bekommen die Varianten A, B, C.
+  const t = focus === 'full' ? FULL_BODY[variant % 3] : focus === 'upper' ? UPPER_LOWER[(variant % 2) * 2] : focus === 'lower' ? UPPER_LOWER[(variant % 2) * 2 + 1] : DAY_FOCUS[focus];
+  const day = buildDay({ ...t, name: `${DAY_FOCUS_LABELS[focus]}${focus === 'full' || focus === 'upper' || focus === 'lower' || variant > 0 ? ` ${'ABCDEF'[variant]}` : ''}` }, variant, weekday, profile, library);
+  return { ...day, id: `day_${weekday}_${focus}_${variant}` };
+}
+
+/** Sinnvolle Schwerpunkte für n Trainingstage (wie beim automatischen Plan). */
+export function suggestFocuses(days: number, experience: Profile['experience']): DayFocus[] {
+  const strength = Math.min(days, MAX_STRENGTH_DAYS[experience]);
+  const base: DayFocus[] = strength <= 3 ? Array(strength).fill('full') : strength === 4 ? ['upper', 'lower', 'upper', 'lower'] : strength === 5 ? ['upper', 'lower', 'push', 'pull', 'legs'] : ['push', 'pull', 'legs', 'push', 'pull', 'legs'];
+  return [...base, ...Array(days - strength).fill('mobility')];
+}

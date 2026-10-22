@@ -88,6 +88,8 @@ function RootNavigator() {
         <Stack.Screen name="workout/active" options={{ presentation: 'fullScreenModal', gestureEnabled: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="workout/summary" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
         <Stack.Screen name="plan/edit" options={{ ...header, title: 'Plan bearbeiten' }} />
+        <Stack.Screen name="plan/builder" options={{ ...header, title: 'Eigener Plan' }} />
+        <Stack.Screen name="settings" options={{ ...header, title: 'Einstellungen' }} />
         <Stack.Screen name="plan/day/[dayId]" options={{ ...header, title: 'Einheit bearbeiten' }} />
         <Stack.Screen name="library/index" options={{ ...header, title: 'Übungsbibliothek' }} />
         <Stack.Screen name="library/[id]" options={{ ...header, title: 'Übung' }} />

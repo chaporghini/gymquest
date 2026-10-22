@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { BottomTabBar, Tabs } from 'expo-router/js-tabs';
-import { ChartColumn, Dumbbell, House, Play, Trophy, User } from 'lucide-react-native';
+import { ChartColumn, Dumbbell, House, Play, User } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components';
@@ -27,8 +27,9 @@ export default function TabLayout() {
       }}>
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarAccessibilityLabel: 'Home', tabBarIcon: ({ color, size }) => <House color={color} size={size} /> }} />
       <Tabs.Screen name="training" options={{ title: 'Training', tabBarAccessibilityLabel: 'Training', tabBarIcon: ({ color, size }) => <Dumbbell color={color} size={size} /> }} />
-      <Tabs.Screen name="quests" options={{ title: 'Quests', tabBarAccessibilityLabel: 'Quests', tabBarIcon: ({ color, size }) => <Trophy color={color} size={size} /> }} />
-      <Tabs.Screen name="stats" options={{ title: 'Stats', tabBarAccessibilityLabel: 'Statistiken', tabBarIcon: ({ color, size }) => <ChartColumn color={color} size={size} /> }} />
+      <Tabs.Screen name="stats" options={{ title: 'Fortschritt', tabBarAccessibilityLabel: 'Fortschritt', tabBarIcon: ({ color, size }) => <ChartColumn color={color} size={size} /> }} />
+      {/* Quests sind über Home und Fortschritt erreichbar, nicht als eigener Tab. */}
+      <Tabs.Screen name="quests" options={{ href: null, title: 'Quests' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profil', tabBarAccessibilityLabel: 'Profil', tabBarIcon: ({ color, size }) => <User color={color} size={size} /> }} />
     </Tabs>
   );

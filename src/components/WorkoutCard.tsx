@@ -37,7 +37,7 @@ export function WorkoutCard({ day, subtitle, done, highlight, onPress, onStart, 
         <View style={styles.flex}>
           <AppText variant="caption" tone={highlight ? 'accent' : 'secondary'}>{(subtitle ?? WEEKDAYS_LONG[day.weekday]).toUpperCase()}</AppText>
           <AppText variant="heading">{day.name}</AppText>
-          <AppText variant="small" tone="secondary">{day.focus}</AppText>
+          {day.focus && day.focus !== day.name ? <AppText variant="small" tone="secondary">{day.focus}</AppText> : null}
         </View>
         {done ? (
           <View style={styles.done}><AppText variant="caption" tone="accent">ERLEDIGT</AppText></View>

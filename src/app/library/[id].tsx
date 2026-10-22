@@ -8,6 +8,8 @@ import { AppText, Button, Card, EmptyState, Screen, Stepper } from '@/components
 import { getExercise } from '@/data/exercises';
 import { categoryLabels, difficultyLabels, equipmentLabels, limitationLabels, muscleLabels } from '@/i18n/labels';
 import { recommendExerciseLoad } from '@/domain/training';
+import { muscleLoad } from '@/domain/muscles';
+import { BodyMap } from '@/features/BodyMap';
 import { RecommendationCard } from '@/features/RecommendationCard';
 import { useApp } from '@/state/AppProvider';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -48,6 +50,10 @@ export default function ExerciseDetail() {
           <View key={t} style={styles.tag}><AppText variant="small">{t}</AppText></View>
         ))}
       </View>
+
+      <Card>
+        <BodyMap load={muscleLoad([exercise.id])} showList />
+      </Card>
 
       {conflicts.length > 0 ? (
         <Card variant="secondary" style={styles.warn}>

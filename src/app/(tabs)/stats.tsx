@@ -1,9 +1,9 @@
 import { router } from 'expo-router';
-import { Activity, ChevronRight, Clock, Dumbbell, Flame, History, TrendingUp } from 'lucide-react-native';
+import { ChevronRight, History, TrendingUp, Trophy } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { AppText, Card, Chip, EmptyState, Screen, SectionHeader, StatCard } from '@/components';
+import { AppText, Card, Chip, EmptyState, Screen, SectionHeader } from '@/components';
 import { getExercise } from '@/data/exercises';
 import { addDays, formatDate, formatDuration } from '@/domain/dates';
 import { weeklyStreak } from '@/domain/progression';
@@ -28,13 +28,16 @@ const EXERCISE_METRICS: Record<ExerciseMetric, { label: string; unit: string }> 
   reps: { label: 'Wiederholungen', unit: 'beste Wdh. pro Satz' },
   duration: { label: 'Dauer', unit: 'Sekunden (beste Haltezeit)' },
 };
+type ChartKind = 'weeks' | 'months' | 'exercise' | 'xp' | 'body';
+const CHARTS: Record<ChartKind, string> = { weeks: 'Wochen', months: 'Monate', exercise: 'Übungen', xp: 'XP & Level', body: 'Körpergewicht' };
 const WEEKS = 8;
 const MONTHS = 6;
 const XP_WEEKS = 12;
 
 export default function Stats() {
-  const { sessions, plan, xpEvents, profile } = useApp();
+  const { sessions, plan, xpEvents, profile, level, rank } = useApp();
   const now = useMemo(() => new Date(), [sessions, xpEvents, profile]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [chart, setChart] = useState<ChartKind>('weeks');
   const [weekMetric, setWeekMetric] = useState<WeekMetric>('workouts');
   const [monthMetric, setMonthMetric] = useState<MonthMetric>('minutes');
   const [selected, setSelected] = useState<number | null>(null);
@@ -61,10 +64,9 @@ export default function Stats() {
         }
       }
     }
-    return [...best.entries()].sort((a, b) => b[1].weight - a[1].weight).slice(0, 5);
+    return [...best.entries()].sort((a, b) => b[1].weight - a[1].weight).slice(0, 3);
   }, [sessions]);
 
-  const totalSets = sessions.reduce((n, s) => n + s.sets.length, 0);
   const totalTime = sessions.reduce((n, s) => n + s.durationSec, 0);
   const streak = weeklyStreak(sessions, plan, now);
   const sel = selected !== null ? weekly[selected] : null;
@@ -74,13 +76,12 @@ export default function Stats() {
 
   return (
     <Screen>
-      <AppText variant="title" accessibilityRole="header">Statistiken</AppText>
+      <AppText variant="title" accessibilityRole="header">Fortschritt</AppText>
 
       <View style={styles.grid}>
-        <StatCard label="Trainings" value={String(sessions.length)} icon={Dumbbell} />
-        <StatCard label="Sätze" value={totalSets.toLocaleString('de-DE')} icon={Activity} />
-        <StatCard label="Trainingszeit" value={formatDuration(totalTime)} icon={Clock} />
-        <StatCard label="Wochen-Serie" value={`${streak}`} hint={streak === 1 ? 'Woche in Folge' : 'Wochen in Folge'} icon={Flame} />
+        <Mini label="Trainings" value={String(sessions.length)} />
+        <Mini label="Stunden" value={(Math.round(totalTime / 360) / 10).toLocaleString('de-DE')} />
+        <Mini label="Wochen-Serie" value={`${streak}`} />
       </View>
 
       <Card variant="highlight" onPress={() => router.push('/report')} accessibilityLabel="Dein Fortschritt: Wochen- und Monatsbericht öffnen" style={styles.reportLink}>
@@ -91,9 +92,22 @@ export default function Stats() {
         </View>
         <ChevronRight size={18} color={colors.textSecondary} />
       </Card>
+      <Card onPress={() => router.push('/quests')} accessibilityLabel="Quests und Achievements öffnen" style={styles.reportLink}>
+        <Trophy size={22} color={colors.warning} />
+        <View style={styles.flex}>
+          <AppText variant="bodyStrong">Quests & Achievements</AppText>
+          <AppText variant="small" tone="secondary">Level {level.level} · {rank.name}</AppText>
+        </View>
+        <ChevronRight size={18} color={colors.textSecondary} />
+      </Card>
 
       <SectionHeader title="Verlauf" />
-      <ChartCard
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.noGrow} contentContainerStyle={styles.chipRow} accessibilityRole="radiogroup">
+        {(Object.keys(CHARTS) as ChartKind[]).map((k) => (
+          <Chip key={k} role="radio" label={CHARTS[k]} selected={chart === k} onPress={() => setChart(k)} />
+        ))}
+      </ScrollView>
+      {chart === 'weeks' ? <ChartCard
         title={WEEK_METRICS[weekMetric].title}
         period={`Letzte ${WEEKS} Wochen (${weekPeriod})`}
         unit={WEEK_METRICS[weekMetric].unit}
@@ -113,9 +127,9 @@ export default function Stats() {
             data={weekly.map((w, i) => ({ value: w[weekMetric], label: w.label, muted: w.running, selected: selected === i, onPress: () => setSelected(i === selected ? null : i) }))}
           />
         )}
-      </ChartCard>
+      </ChartCard> : null}
 
-      <ChartCard
+      {chart === 'months' ? <ChartCard
         title={MONTH_METRICS[monthMetric].title}
         period={`Letzte ${MONTHS} Monate (${monthly[0].label} – ${monthly[MONTHS - 1].label} ${now.getFullYear()})`}
         unit={MONTH_METRICS[monthMetric].unit}
@@ -130,9 +144,9 @@ export default function Stats() {
           </View>
         }>
         {(width) => <Bars width={width} data={monthly.map((m) => ({ value: m[monthMetric], label: m.label, muted: m.running }))} />}
-      </ChartCard>
+      </ChartCard> : null}
 
-      <ChartCard
+      {chart === 'exercise' ? <ChartCard
         title={chosen ? `Übung: ${chosen.name}` : 'Übungsverlauf'}
         period={exercisePoints.length ? `${exercisePoints.length} Einheiten (${exercisePoints[0].label} – ${exercisePoints[exercisePoints.length - 1].label})` : 'Alle Einheiten'}
         unit={EXERCISE_METRICS[metric].unit}
@@ -164,9 +178,9 @@ export default function Stats() {
           ) : null
         }>
         {(width) => <Line width={width} data={exercisePoints} fromZero={metric !== 'weight'} />}
-      </ChartCard>
+      </ChartCard> : null}
 
-      <ChartCard
+      {chart === 'xp' ? <ChartCard
         title="XP und Level"
         period={`Letzte ${XP_WEEKS} Wochen, Stand am Wochenende`}
         unit="XP gesamt"
@@ -174,9 +188,9 @@ export default function Stats() {
         summary={xp.map((x) => `${x.label}: ${x.totalXp} XP, Level ${x.level}`).join(', ')}
         footnote={xpLevelStart === xpLevelEnd ? `Level ${xpLevelEnd} im ganzen Zeitraum.` : `Level ${xpLevelStart} → ${xpLevelEnd} in diesem Zeitraum.`}>
         {(width) => <Line width={width} data={xp.map((x) => ({ value: x.totalXp, label: x.label }))} />}
-      </ChartCard>
+      </ChartCard> : null}
 
-      <ChartCard
+      {chart === 'body' ? <ChartCard
         title="Körpergewicht"
         period={bodyWeight.length ? `${bodyWeight.length} Einträge (${bodyWeight[0].label} – ${bodyWeight[bodyWeight.length - 1].label})` : 'Alle Einträge'}
         unit="kg"
@@ -190,7 +204,7 @@ export default function Stats() {
         summary={bodyWeight.map((p) => `${p.label}: ${p.value} kg`).join(', ')}
         footnote="Nur deine Einträge, ohne Bewertung.">
         {(width) => <Line width={width} data={bodyWeight} fromZero={false} />}
-      </ChartCard>
+      </ChartCard> : null}
 
       {records.length > 0 ? (
         <>
@@ -206,12 +220,12 @@ export default function Stats() {
         </>
       ) : null}
 
-      <SectionHeader title="Trainingshistorie" />
+      <SectionHeader title="Letzte Trainings" />
       {sessions.length === 0 ? (
         <EmptyState icon={History} title="Noch keine Trainings" message="Sobald du ein Training abschließt, erscheint es hier." />
       ) : (
         <Card padded={false}>
-          {sessions.slice(0, 30).map((s, i) => (
+          {sessions.slice(0, 10).map((s, i) => (
             <Card
               key={s.id}
               padded={false}
@@ -224,7 +238,6 @@ export default function Stats() {
                   {formatDate(s.finishedAt)} · {formatDuration(s.durationSec)} · {s.sets.length} Sätze
                 </AppText>
               </View>
-              <AppText variant="small" tone="accent" style={styles.bold}>+{s.xpEarned} XP</AppText>
               <ChevronRight size={18} color={colors.textSecondary} />
             </Card>
           ))}
@@ -234,8 +247,19 @@ export default function Stats() {
   );
 }
 
+function Mini({ label, value }: { label: string; value: string }) {
+  return (
+    <Card style={styles.mini} accessibilityLabel={`${label}: ${value}`}>
+      <AppText variant="title">{value}</AppText>
+      <AppText variant="caption" tone="secondary">{label.toUpperCase()}</AppText>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  grid: { flexDirection: 'row', gap: spacing.md },
+  mini: { flex: 1, gap: 2, alignItems: 'center', paddingVertical: spacing.md },
+  chipRow: { flexDirection: 'row', gap: spacing.sm },
   chips: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   noGrow: { flexGrow: 0 },
   gapSm: { gap: spacing.sm },
