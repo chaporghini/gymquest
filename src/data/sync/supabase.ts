@@ -90,6 +90,7 @@ function toError(error: { message: string; code?: string }): Error {
 /** Übersetzt typische Anmeldefehler von Supabase ins Deutsche. */
 export function translateAuthError(message: string): string {
   const m = message.toLowerCase();
+  if (m.includes('invalid api key')) return 'Die App ist mit einem ungültigen Supabase-Schlüssel gebaut. Das liegt nicht an deinen Eingaben.';
   if (m.includes('invalid login credentials')) return 'E-Mail oder Passwort ist falsch.';
   if (m.includes('email not confirmed')) return 'Bitte bestätige zuerst deine E-Mail-Adresse über den Link in der Bestätigungsmail.';
   if (m.includes('user already registered')) return 'Für diese E-Mail gibt es schon ein Konto. Bitte melde dich an.';
