@@ -261,8 +261,23 @@ function SignInForm({ cloud }: { cloud: CloudSync }) {
     }
   };
 
+  const google = async () => {
+    setError(null);
+    try {
+      await cloud.signInWithGoogle();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Anmeldung mit Google fehlgeschlagen.');
+    }
+  };
+
   return (
     <View style={styles.form}>
+      {cloud.googleAvailable ? (
+        <>
+          <Button label="Mit Google anmelden" variant="secondary" onPress={() => void google()} fullWidth />
+          <AppText variant="small" tone="secondary" align="center">oder mit E-Mail</AppText>
+        </>
+      ) : null}
       <View style={styles.chips} accessibilityRole="radiogroup">
         <Chip role="radio" label="Anmelden" selected={mode === 'signin'} onPress={() => setMode('signin')} />
         <Chip role="radio" label="Konto erstellen" selected={mode === 'signup'} onPress={() => setMode('signup')} />

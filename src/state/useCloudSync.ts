@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 
 import { forgetSyncState, readMeta, syncOnce, type TrackingRepository } from '@/data/sync';
+import { SUPABASE_KEY, SUPABASE_URL } from '@/data/sync/config';
 import { getSupabase, SupabaseRemoteStore, translateAuthError } from '@/data/sync/supabase';
 
 export interface CloudUser {
@@ -23,6 +24,10 @@ export interface CloudSync {
   signIn: (email: string, password: string) => Promise<void>;
   /** 'confirm-email', wenn Supabase erst eine Bestätigung per E-Mail verlangt. */
   signUp: (email: string, password: string) => Promise<'signed-in' | 'confirm-email'>;
+  /** true, wenn in Supabase die Anmeldung mit Google aktiviert ist (nur Web). */
+  googleAvailable: boolean;
+  /** Leitet zur Google-Anmeldung weiter; danach kommt man angemeldet in die App zurück. */
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   /** Schickt eine E-Mail mit Link; der Link meldet im Browser an, danach kann ein neues Passwort gesetzt werden. */
   sendPasswordReset: (email: string) => Promise<void>;
@@ -58,6 +63,7 @@ export function useCloudSync(repo: TrackingRepository, onLocalChanged: () => Pro
   const [message, setMessage] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
+  const [googleAvailable, setGoogleAvailable] = useState(false);
   const userRef = useRef<CloudUser | null>(null);
   const running = useRef<Promise<void> | null>(null);
   const again = useRef(false);
@@ -81,6 +87,15 @@ export function useCloudSync(repo: TrackingRepository, onLocalChanged: () => Pro
       .finally(() => setReady(true));
     const { data } = supabase.auth.onAuthStateChange((_event, session) => apply(session?.user));
     return () => data.subscription.unsubscribe();
+  }, [supabase]);
+
+  // Google-Button nur zeigen, wenn der Anbieter in Supabase eingeschaltet ist.
+  useEffect(() => {
+    if (!supabase || Platform.OS !== 'web' || !SUPABASE_URL || !SUPABASE_KEY) return;
+    fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_KEY } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s: { external?: { google?: boolean } } | null) => setGoogleAvailable(!!s?.external?.google))
+      .catch(() => {});
   }, [supabase]);
 
   useEffect(() => {
@@ -189,6 +204,12 @@ export function useCloudSync(repo: TrackingRepository, onLocalChanged: () => Pro
     [supabase],
   );
 
+  const signInWithGoogle = useCallback(async () => {
+    if (!supabase) throw new Error('Cloud-Sync ist in dieser Version nicht eingerichtet.');
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: redirectUrl() } });
+    if (error) throw new Error(translateAuthError(error.message));
+  }, [supabase]);
+
   const signOut = useCallback(async () => {
     if (!supabase) return;
     await running.current?.catch(() => {});
@@ -227,5 +248,5 @@ export function useCloudSync(repo: TrackingRepository, onLocalChanged: () => Pro
     await signOut();
   }, [supabase, signOut]);
 
-  return { configured: !!supabase, ready, user, phase, message, lastSyncedAt, signIn, signUp, signOut, sendPasswordReset, changePassword, syncNow, deleteCloudData };
+  return { configured: !!supabase, ready, user, phase, message, lastSyncedAt, signIn, signUp, googleAvailable, signInWithGoogle, signOut, sendPasswordReset, changePassword, syncNow, deleteCloudData };
 }
