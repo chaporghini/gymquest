@@ -65,6 +65,11 @@ export default function Training() {
       ) : null}
       {error ? <AppText tone="error" accessibilityRole="alert">{error}</AppText> : null}
 
+      <SectionHeader title="Muskeln in deinem Plan" />
+      <Card>
+        <BodyMap load={load} size={200} />
+      </Card>
+
       <SectionHeader title="Diese Woche" actionLabel="Plan anpassen" onAction={() => router.push('/plan/builder')} />
       <Card padded={false}>
         {week.days.filter((d) => d.planDay).map((d, i) => {
@@ -91,11 +96,6 @@ export default function Training() {
         })}
       </Card>
       {restDays.length ? <AppText variant="small" tone="secondary">Ruhetage: {restDays.join(', ')}</AppText> : null}
-
-      <SectionHeader title="Muskeln in deinem Plan" />
-      <Card>
-        <BodyMap load={load} size={200} />
-      </Card>
 
       <Button label="Übungsbibliothek" icon={BookOpen} variant="secondary" onPress={() => router.push('/library')} />
     </Screen>

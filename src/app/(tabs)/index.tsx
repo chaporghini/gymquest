@@ -18,10 +18,12 @@ import {
 } from '@/components';
 import { addDays, isSameDay, WEEKDAYS_LONG, WEEKDAYS_SHORT, weekdayIndex } from '@/domain/dates';
 import { getGreeting } from '@/domain/greeting';
+import { dayMuscleLoad } from '@/domain/muscles';
 import { computeWeeklyQuests, summarizeWeek } from '@/domain/progression';
 import { getNextRank } from '@/domain/ranks';
 import { getWeekOverview } from '@/domain/weekPlan';
 import { getNextSession } from '@/domain/workout';
+import { BodyMap } from '@/features/BodyMap';
 import { useApp } from '@/state/AppProvider';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -36,6 +38,7 @@ export default function Home() {
   const week = useMemo(() => summarizeWeek(sessions, plan, now), [sessions, plan, now]);
   const quests = useMemo(() => computeWeeklyQuests({ sessions, xpEvents, plan, now }), [sessions, xpEvents, plan, now]);
   const overview = useMemo(() => getWeekOverview(plan, sessions, now, now), [plan, sessions, now]);
+  const nextLoad = useMemo(() => (next ? dayMuscleLoad(next.day) : null), [next]);
   const nextRank = getNextRank(level.level);
   const activeQuests = quests.filter((q) => !q.completed).slice(0, 1);
   const greeting = getGreeting({
@@ -116,6 +119,12 @@ export default function Home() {
           onAction={() => app.regeneratePlan().catch((e) => setStartError(e instanceof Error ? e.message : 'Plan konnte nicht erstellt werden.'))}
         />
       )}
+      {!activeWorkout && next && nextLoad ? (
+        <Card onPress={() => router.push({ pathname: '/day/[dayId]', params: { dayId: next.day.id } })} accessibilityLabel="Muskeln im nächsten Training" accessibilityHint="Öffnet die Einheit">
+          <AppText variant="bodyStrong">Das trainierst du</AppText>
+          <BodyMap load={nextLoad} size={170} />
+        </Card>
+      ) : null}
       {starting ? <AppText tone="secondary">Training wird vorbereitet …</AppText> : null}
       {startError ? <AppText tone="error" accessibilityRole="alert">{startError}</AppText> : null}
 

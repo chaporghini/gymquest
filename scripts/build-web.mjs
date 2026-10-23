@@ -19,7 +19,8 @@ rmSync(dist, { recursive: true, force: true });
 const result = spawnSync('npx', ['expo', 'export', '--platform', 'web', '--output-dir', 'dist', '--clear'], {
   cwd: root,
   stdio: 'inherit',
-  env: process.env,
+  // Build-Zeitpunkt wird im Profil angezeigt, damit man sieht, ob die neue Version läuft.
+  env: { ...process.env, EXPO_PUBLIC_BUILD_TIME: process.env.EXPO_PUBLIC_BUILD_TIME || new Date().toISOString() },
 });
 if (result.status !== 0) process.exit(result.status ?? 1);
 
@@ -43,8 +44,21 @@ const head = `
     <style>html, body { background-color: #0B0D0E; color-scheme: dark; }</style>
     <script>
       if ('serviceWorker' in navigator) {
+        // Hatte die Seite schon einen Service Worker, wird beim Wechsel auf eine neue Version einmal neu geladen.
+        var hadController = !!navigator.serviceWorker.controller;
+        var reloaded = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          if (!hadController || reloaded) return;
+          reloaded = true;
+          window.location.reload();
+        });
         window.addEventListener('load', function () {
-          navigator.serviceWorker.register('${base}sw.js', { scope: '${base}' }).catch(function (e) { console.warn('Service Worker nicht registriert', e); });
+          navigator.serviceWorker.register('${base}sw.js', { scope: '${base}' }).then(function (reg) {
+            // iOS hält Homescreen-Apps lange im Hintergrund: beim Zurückkehren nach Updates schauen.
+            document.addEventListener('visibilitychange', function () {
+              if (document.visibilityState === 'visible') reg.update().catch(function () {});
+            });
+          }).catch(function (e) { console.warn('Service Worker nicht registriert', e); });
         });
       }
     </script>

@@ -10,6 +10,12 @@ import { equipmentLabels, experienceLabels, goalLabels, limitationLabels } from 
 import { useApp } from '@/state/AppProvider';
 import { colors, spacing } from '@/theme/tokens';
 
+const BUILD_TIME = (() => {
+  const raw = process.env.EXPO_PUBLIC_BUILD_TIME;
+  const d = raw ? new Date(raw) : null;
+  return d && !Number.isNaN(d.getTime()) ? `${formatDate(d.toISOString())}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} Uhr` : null;
+})();
+
 export default function Profile() {
   const app = useApp();
   const { profile, level, rank, cloud } = app;
@@ -83,6 +89,7 @@ export default function Profile() {
       <AppText variant="small" tone="secondary" align="center" style={styles.disclaimer}>
         GYMQUEST ersetzt keine medizinische Beratung. Bei Schmerzen Training abbrechen und ärztlich abklären lassen.
       </AppText>
+      {BUILD_TIME ? <AppText variant="caption" tone="secondary" align="center">Version vom {BUILD_TIME}</AppText> : null}
 
       <ConfirmDialog
         visible={dialog === 'regenerate'}
