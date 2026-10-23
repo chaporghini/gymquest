@@ -7,7 +7,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card, ProgressBar, Screen } from '@/components';
 import { DEFAULT_PROFILE_FORM, profileFormSchema, type ProfileForm } from '@/domain/profileSchema';
-import { BodyFields, EquipmentField, ExperienceField, GoalField, LimitationFields, NameField, ScheduleFields } from '@/features/ProfileFields';
+import { BodyFields, EquipmentField, ExperienceField, FocusField, GoalField, HistoryField, LimitationFields, LocationField, NameField, ScheduleFields } from '@/features/ProfileFields';
 import { equipmentLabels, experienceLabels, goalLabels, limitationLabels } from '@/i18n/labels';
 import { useApp } from '@/state/AppProvider';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -23,10 +23,10 @@ const STEPS: Step[] = [
   { title: 'Deine Erfahrung', subtitle: 'Damit Übungen und Umfang zu dir passen.', fields: ['experience'] },
   { title: 'Dein Ziel', subtitle: 'Bestimmt Wiederholungen, Pausen und Übungsauswahl.', fields: ['goal'] },
   { title: 'Dein Wochenrhythmus', subtitle: 'Wir planen Erholungstage automatisch ein.', fields: ['daysPerWeek', 'sessionMinutes'] },
-  { title: 'Dein Equipment', subtitle: 'Was steht dir beim Training zur Verfügung?', fields: ['equipment'] },
-  { title: 'Rücksicht nehmen', subtitle: 'Alles auf dieser Seite ist freiwillig.', fields: ['limitations', 'excludedExerciseIds', 'notes'] },
+  { title: 'Ort und Ausstattung', subtitle: 'Was steht dir beim Training zur Verfügung?', fields: ['location', 'equipment', 'focusMuscles'] },
+  { title: 'Rücksicht nehmen', subtitle: 'Alles auf dieser Seite ist freiwillig.', fields: ['limitations', 'excludedExerciseIds', 'notes', 'history'] },
   { title: 'Über dich', subtitle: 'Hilft uns, Empfehlungen sicher zu halten.', fields: ['ageYears', 'heightCm', 'bodyWeightKg'] },
-  { title: 'Bereit für die erste Quest', subtitle: 'Prüfe deine Angaben. Du kannst alles später im Profil ändern.', fields: [] },
+  { title: 'Bereit für die erste Quest', subtitle: 'Prüfe deine Angaben. Danach erstellst du deinen Trainingsplan, Schritt für Schritt.', fields: [] },
 ];
 
 export default function Onboarding() {
@@ -126,8 +126,11 @@ export default function Onboarding() {
       {step === 1 && <ExperienceField {...fieldProps} />}
       {step === 2 && <GoalField {...fieldProps} />}
       {step === 3 && <ScheduleFields {...fieldProps} />}
+      {step === 4 && <LocationField {...fieldProps} />}
       {step === 4 && <EquipmentField {...fieldProps} />}
+      {step === 4 && <FocusField {...fieldProps} />}
       {step === 5 && <LimitationFields {...fieldProps} />}
+      {step === 5 && <HistoryField {...fieldProps} />}
       {step === 6 && <BodyFields {...fieldProps} />}
       {step === 7 && (
         <Card style={styles.summary}>

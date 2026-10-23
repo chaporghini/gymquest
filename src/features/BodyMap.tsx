@@ -11,6 +11,8 @@ export const LEVEL_COLORS: Record<MuscleLevel, string> = {
   none: '#3FAF6C',
 };
 const SKIN = '#2C3236';
+/** Muskeln ohne Daten (neutraler Zustand) */
+const NEUTRAL = '#3A4146';
 const GAP = colors.background;
 
 type Shape = { d?: string; ellipse?: [number, number, number, number]; rect?: [number, number, number, number, number] };
@@ -69,12 +71,17 @@ function Base() {
   );
 }
 
-function Figure({ shapes, load }: { shapes: Partial<Record<Muscle, Shape[]>>; load: MuscleLoad }) {
+function Figure({ shapes, load, neutral, selected, onSelect }: { shapes: Partial<Record<Muscle, Shape[]>>; load: MuscleLoad; neutral?: boolean; selected?: Muscle | null; onSelect?: (m: Muscle) => void }) {
   return (
     <Svg viewBox="16 0 88 230" width="100%" height="100%">
       <Base />
       {(Object.entries(shapes) as [Muscle, Shape[]][]).map(([muscle, list]) => (
-        <G key={muscle} fill={LEVEL_COLORS[load[muscle]]} stroke={GAP} strokeWidth={1}>
+        <G
+          key={muscle}
+          fill={neutral ? NEUTRAL : LEVEL_COLORS[load[muscle]]}
+          stroke={selected === muscle ? colors.text : GAP}
+          strokeWidth={selected === muscle ? 2 : 1}
+          onPress={onSelect ? () => onSelect(muscle) : undefined}>
           {list.map((s, i) =>
             s.d ? <Path key={i} d={s.d} /> : s.ellipse ? <Ellipse key={i} cx={s.ellipse[0]} cy={s.ellipse[1]} rx={s.ellipse[2]} ry={s.ellipse[3]} /> : s.rect ? <Rect key={i} x={s.rect[0]} y={s.rect[1]} width={s.rect[2]} height={s.rect[3]} rx={s.rect[4]} /> : null,
           )}
@@ -85,30 +92,48 @@ function Figure({ shapes, load }: { shapes: Partial<Record<Muscle, Shape[]>>; lo
 }
 
 /** Körper von vorne und hinten: rot = direkt, gelb = indirekt, grün = nicht beansprucht. */
-export function BodyMap({ load, size = 220, showLegend = true, showList = false }: { load: MuscleLoad; size?: number; showLegend?: boolean; showList?: boolean }) {
+export function BodyMap({
+  load,
+  size = 220,
+  showLegend = true,
+  showList = false,
+  neutral = false,
+  selected = null,
+  onSelect,
+}: {
+  load: MuscleLoad;
+  size?: number;
+  showLegend?: boolean;
+  showList?: boolean;
+  /** Keine Daten: alle Muskeln neutral grau, ohne Legende. */
+  neutral?: boolean;
+  selected?: Muscle | null;
+  /** Macht die Muskeln antippbar. */
+  onSelect?: (m: Muscle) => void;
+}) {
   const primary = musclesWith(load, 'primary');
   const secondary = musclesWith(load, 'secondary');
   const summary = `Direkt beansprucht: ${primary.map((x) => MUSCLE_LABELS[x]).join(', ') || 'keine'}. Indirekt: ${secondary.map((x) => MUSCLE_LABELS[x]).join(', ') || 'keine'}.`;
   return (
-    <View style={styles.wrap} accessible accessibilityRole="image" accessibilityLabel={`Muskelkarte. ${summary}`}>
+    <View style={styles.wrap} accessible={!onSelect} accessibilityRole={onSelect ? undefined : 'image'} accessibilityLabel={onSelect ? undefined : `Muskelkarte. ${summary}`}>
       <View style={styles.figures}>
         {(['Vorne', 'Hinten'] as const).map((label) => (
           <View key={label} style={styles.figure}>
             <View style={{ width: size * 0.42, height: size }}>
-              <Figure shapes={label === 'Vorne' ? FRONT : BACK} load={load} />
+              <Figure shapes={label === 'Vorne' ? FRONT : BACK} load={load} neutral={neutral} selected={selected} onSelect={onSelect} />
             </View>
             <AppText variant="caption" tone="secondary">{label.toUpperCase()}</AppText>
           </View>
         ))}
       </View>
-      {showLegend ? (
+      {showLegend && !neutral ? (
         <View style={styles.legend}>
           <Legend color={LEVEL_COLORS.primary} label="Direkt" />
           <Legend color={LEVEL_COLORS.secondary} label="Indirekt" />
           <Legend color={LEVEL_COLORS.none} label="Nicht beansprucht" />
         </View>
       ) : null}
-      {showList && (primary.length || secondary.length) ? (
+      {showList && !neutral && (primary.length || secondary.length) ? (
         <View style={styles.list}>
           {primary.length ? <AppText variant="small"><AppText variant="small" style={{ color: LEVEL_COLORS.primary, fontWeight: '700' }}>Direkt: </AppText>{primary.map((x) => MUSCLE_LABELS[x]).join(', ')}</AppText> : null}
           {secondary.length ? <AppText variant="small"><AppText variant="small" style={{ color: LEVEL_COLORS.secondary, fontWeight: '700' }}>Indirekt: </AppText>{secondary.map((x) => MUSCLE_LABELS[x]).join(', ')}</AppText> : null}

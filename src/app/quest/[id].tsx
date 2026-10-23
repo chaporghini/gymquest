@@ -9,17 +9,13 @@ import { computeWeeklyQuests } from '@/domain/progression';
 import { useApp } from '@/state/AppProvider';
 import { colors, radius, spacing } from '@/theme/tokens';
 
-const HOW_IT_COUNTS: Record<string, string> = {
-  weekly_workouts: 'Jedes abgeschlossene Training in dieser Kalenderwoche zählt. Das Ziel entspricht der Anzahl der Einheiten in deinem Plan.',
-  weekly_sets: 'Gezählt werden alle Sätze, die du im Trainingsmodus abgehakt hast.',
-  weekly_full_workout: 'Schließe bei einer Einheit aus deinem Plan alle geplanten Sätze ab.',
-  weekly_mobility: 'Gezählt werden abgehakte Sätze von Mobilitätsübungen, z. B. Katze-Kuh oder Hüftbeuger-Dehnung.',
-};
-
 export default function QuestDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { sessions, xpEvents, plan, activeWorkout } = useApp();
-  const quest = useMemo(() => computeWeeklyQuests({ sessions, xpEvents, plan, now: new Date() }).find((q) => q.id === id), [id, sessions, xpEvents, plan]);
+  const { sessions, xpEvents, plan, activeWorkout, profile } = useApp();
+  const quest = useMemo(
+    () => computeWeeklyQuests({ sessions, xpEvents, plan, now: new Date(), experience: profile?.experience }).find((q) => q.id === id),
+    [id, sessions, xpEvents, plan, profile],
+  );
 
   if (!quest) {
     return (
@@ -60,7 +56,7 @@ export default function QuestDetail() {
 
       <Card variant="secondary" style={styles.gap}>
         <AppText variant="bodyStrong">So wird gezählt</AppText>
-        <AppText tone="secondary">{HOW_IT_COUNTS[quest.id] ?? quest.description}</AppText>
+        <AppText tone="secondary">{quest.condition}</AppText>
         <AppText variant="small" tone="secondary">Der Fortschritt wird ausschließlich aus deinen gespeicherten Trainings berechnet.</AppText>
       </Card>
 

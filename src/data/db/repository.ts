@@ -229,7 +229,9 @@ async function insertSession(db: SQLiteDatabase, session: WorkoutSession) {
     session.finishedAt,
     session.durationSec,
     session.xpEarned,
-    session.feedback?.length || session.readiness != null ? JSON.stringify({ feedback: session.feedback, readiness: session.readiness }) : null,
+    session.feedback?.length || session.readiness != null || session.exercises
+      ? JSON.stringify({ feedback: session.feedback, readiness: session.readiness, planName: session.planName, exercises: session.exercises })
+      : null,
   );
   for (const set of session.sets) {
     await db.runAsync(
@@ -261,10 +263,12 @@ async function insertXp(db: SQLiteDatabase, events: XpEvent[]) {
 }
 
 function toSession(row: SessionRow, sets: SetRow[]): WorkoutSession {
-  const extra = parseJson<Pick<WorkoutSession, 'feedback' | 'readiness'>>(row.extra);
+  const extra = parseJson<Pick<WorkoutSession, 'feedback' | 'readiness' | 'planName' | 'exercises'>>(row.extra);
   return {
     ...(extra?.feedback ? { feedback: extra.feedback } : {}),
     ...(extra?.readiness != null ? { readiness: extra.readiness } : {}),
+    ...(extra?.planName ? { planName: extra.planName } : {}),
+    ...(extra?.exercises ? { exercises: extra.exercises } : {}),
     id: row.id,
     planDayId: row.plan_day_id,
     name: row.name,

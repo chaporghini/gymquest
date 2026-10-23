@@ -8,6 +8,7 @@ import type {
   Profile,
   TrainingPlan,
 } from './types';
+import { musclesOf, type Muscle } from './muscles';
 import { recommendPrescription } from './training/prescription';
 
 // Regelbasierte Trainingsplanerstellung – vollständig lokal, ohne externe KI-API.
@@ -22,20 +23,20 @@ interface DayTemplate {
 
 const FULL_BODY: DayTemplate[] = [
   { name: 'Ganzkörper A', focus: 'Kniebeuge, Drücken, Rudern', slots: ['squat', 'push_horizontal', 'pull_horizontal', 'hinge', 'core', 'push_vertical', 'arms', 'lunge'] },
-  { name: 'Ganzkörper B', focus: 'Hüfte, Schultern, Ziehen', slots: ['hinge', 'push_vertical', 'pull_vertical', 'lunge', 'core', 'push_horizontal', 'arms', 'pull_horizontal'] },
-  { name: 'Ganzkörper C', focus: 'Einbeinig, Drücken, Ziehen', slots: ['lunge', 'push_horizontal', 'pull_vertical', 'squat', 'core', 'pull_horizontal', 'arms', 'push_vertical'] },
+  { name: 'Ganzkörper B', focus: 'Hüfte, Schultern, Ziehen', slots: ['hinge', 'push_vertical', 'pull_vertical', 'lunge', 'core', 'push_horizontal', 'arms', 'pull_horizontal', 'carry'] },
+  { name: 'Ganzkörper C', focus: 'Einbeinig, Drücken, Ziehen', slots: ['lunge', 'push_horizontal', 'pull_vertical', 'squat', 'core', 'pull_horizontal', 'arms', 'push_vertical', 'calves'] },
 ];
 
 const UPPER_LOWER: DayTemplate[] = [
   { name: 'Oberkörper A', focus: 'Brust, Rücken, Schultern', slots: ['push_horizontal', 'pull_horizontal', 'push_vertical', 'pull_vertical', 'arms', 'core', 'arms', 'pull_horizontal'] },
-  { name: 'Unterkörper A', focus: 'Beine, Gesäß, Rumpf', slots: ['squat', 'hinge', 'lunge', 'core', 'hinge', 'core', 'squat', 'mobility'] },
+  { name: 'Unterkörper A', focus: 'Beine, Gesäß, Rumpf', slots: ['squat', 'hinge', 'lunge', 'calves', 'core', 'hinge', 'core', 'squat', 'mobility'] },
   { name: 'Oberkörper B', focus: 'Schultern, Rücken, Arme', slots: ['push_vertical', 'pull_vertical', 'push_horizontal', 'pull_horizontal', 'arms', 'core', 'arms', 'push_horizontal'] },
-  { name: 'Unterkörper B', focus: 'Hüfte, Beine, Rumpf', slots: ['hinge', 'lunge', 'squat', 'core', 'lunge', 'core', 'hinge', 'mobility'] },
+  { name: 'Unterkörper B', focus: 'Hüfte, Beine, Rumpf', slots: ['hinge', 'lunge', 'squat', 'calves', 'core', 'lunge', 'core', 'hinge', 'mobility'] },
 ];
 
 const PUSH: DayTemplate = { name: 'Push', focus: 'Brust, Schultern, Trizeps', slots: ['push_horizontal', 'push_vertical', 'push_horizontal', 'arms', 'core', 'push_vertical', 'arms', 'mobility'] };
 const PULL: DayTemplate = { name: 'Pull', focus: 'Rücken, Bizeps', slots: ['pull_vertical', 'pull_horizontal', 'pull_vertical', 'arms', 'core', 'pull_horizontal', 'arms', 'mobility'] };
-const LEGS: DayTemplate = { name: 'Beine', focus: 'Beine, Gesäß, Rumpf', slots: ['squat', 'hinge', 'lunge', 'core', 'squat', 'hinge', 'core', 'mobility'] };
+const LEGS: DayTemplate = { name: 'Beine', focus: 'Beine, Gesäß, Rumpf', slots: ['squat', 'hinge', 'lunge', 'calves', 'core', 'squat', 'hinge', 'core', 'mobility'] };
 const MOBILITY_DAY: DayTemplate = { name: 'Aktive Erholung', focus: 'Mobilität und Rumpf', slots: ['mobility', 'mobility', 'core', 'mobility', 'core', 'mobility', 'mobility', 'core'] };
 
 /** Verteilt Trainingstage so, dass möglichst Ruhetage dazwischen liegen (0 = Montag). */
@@ -65,7 +66,10 @@ function chooseTemplates(profile: Profile): { split: string; templates: DayTempl
 
   let split: string;
   let templates: DayTemplate[];
-  if (strengthDays <= 3) {
+  if (profile.goal === 'full_body') {
+    split = 'Ganzkörper';
+    templates = Array.from({ length: strengthDays }, (_, i) => ({ ...FULL_BODY[i % 3], name: `Ganzkörper ${'ABCDEF'[i]}` }));
+  } else if (strengthDays <= 3) {
     split = 'Ganzkörper';
     templates = FULL_BODY.slice(0, strengthDays);
   } else if (strengthDays === 4) {
@@ -170,15 +174,28 @@ export function estimateDayMinutes(day: Pick<PlanDay, 'exercises'>): number {
 function buildDay(template: DayTemplate, index: number, weekday: number, profile: Profile, library: Exercise[]): PlanDay {
   const used = new Set<string>();
   const exercises: PlannedExercise[] = [];
+  const fits = (candidate: PlannedExercise[]) => estimateDayMinutes({ exercises: candidate }) <= profile.sessionMinutes;
   for (const slot of template.slots) {
     const ex = pickExercise(slot, profile, library, used, index);
     if (!ex) continue;
     const planned = prescribe(ex, profile);
-    const candidate = [...exercises, planned];
     // Mindestens drei Übungen, danach nur so viele, wie in die verfügbare Zeit passen.
-    if (exercises.length >= 3 && estimateDayMinutes({ exercises: candidate }) > profile.sessionMinutes) break;
+    if (exercises.length >= 3 && !fits([...exercises, planned])) break;
     used.add(ex.id);
     exercises.push(planned);
+  }
+  // Schwerpunkt-Muskeln aus dem Profil: fehlt einer direkt, eine passende Übung ergänzen oder die letzte ersetzen.
+  for (const muscle of profile.focusMuscles ?? []) {
+    if (exercises.some((e) => musclesOf(e.exerciseId).primary.includes(muscle as Muscle))) continue;
+    const extra = library
+      .filter((e) => !used.has(e.id) && isExerciseAllowed(e, profile) && e.difficulty <= MAX_DIFFICULTY[profile.experience] + 1 && musclesOf(e.id).primary.includes(muscle as Muscle))
+      .sort((a, b) => scoreExercise(b, profile) - scoreExercise(a, profile) || a.id.localeCompare(b.id))[0];
+    if (!extra || template === MOBILITY_DAY) continue;
+    const planned = prescribe(extra, profile);
+    if (fits([...exercises, planned])) exercises.push(planned);
+    else if (exercises.length > 3) exercises[exercises.length - 1] = planned;
+    else continue;
+    used.add(extra.id);
   }
   return {
     id: `day_${index + 1}`,
@@ -240,4 +257,86 @@ export function suggestFocuses(days: number, experience: Profile['experience']):
   const strength = Math.min(days, MAX_STRENGTH_DAYS[experience]);
   const base: DayFocus[] = strength <= 3 ? Array(strength).fill('full') : strength === 4 ? ['upper', 'lower', 'upper', 'lower'] : strength === 5 ? ['upper', 'lower', 'push', 'pull', 'legs'] : ['push', 'pull', 'legs', 'push', 'pull', 'legs'];
   return [...base, ...Array(days - strength).fill('mobility')];
+}
+
+// --- Plan-Ersteller: Aufteilung wählen ---------------------------------------------
+
+export type SplitId = 'full' | 'upper_lower' | 'ppl' | 'custom';
+
+export interface SplitOption {
+  id: SplitId;
+  label: string;
+  description: string;
+  recommended: boolean;
+}
+
+/** Wie viele der Tage Krafttage sind; weitere Tage werden bei Anfängern zu Erholungstagen. */
+export function strengthDayCount(days: number, experience: Experience): number {
+  return Math.min(clampDays(days), MAX_STRENGTH_DAYS[experience]);
+}
+
+/** Aufteilungen, die zur Trainingshäufigkeit passen, mit kurzer Begründung. */
+export function splitOptions(days: number, experience: Experience, goal: Profile['goal']): SplitOption[] {
+  const n = strengthDayCount(days, experience);
+  const recovery = clampDays(days) - n;
+  const extra = recovery > 0 ? ` Dazu ${recovery === 1 ? 'ein Tag' : `${recovery} Tage`} aktive Erholung, weil mehr Krafttage für den Einstieg nicht nötig sind.` : '';
+  const recommended: SplitId = goal === 'full_body' && n <= 4 ? 'full' : n <= 3 ? 'full' : n === 4 ? 'upper_lower' : 'ppl';
+  const options: SplitOption[] = [];
+  if (n <= 4) {
+    options.push({ id: 'full', label: 'Ganzkörper', description: `Jede Einheit trainiert den ganzen Körper, so kommt jede Muskelgruppe ${n}× pro Woche dran. Einfach zu planen und ideal bei 2–3 Tagen.${extra}`, recommended: false });
+  }
+  if (n === 2 || n === 4) {
+    options.push({ id: 'upper_lower', label: 'Oberkörper/Unterkörper', description: `Abwechselnd Ober- und Unterkörper. ${n === 4 ? 'Jede Muskelgruppe 2× pro Woche mit mehr Übungen pro Bereich.' : 'Bei 2 Tagen nur 1× pro Woche je Bereich, Ganzkörper ist meist besser.'}${extra}`, recommended: false });
+  }
+  if (n === 3 || n >= 5) {
+    options.push({
+      id: 'ppl',
+      label: 'Push/Pull/Legs',
+      description:
+        n === 3
+          ? 'Drücken, Ziehen, Beine an je einem Tag. Jede Muskelgruppe nur 1× pro Woche, eher für Fortgeschrittene.'
+          : n === 5
+            ? 'Oberkörper, Unterkörper, dann Drücken, Ziehen, Beine. Jede Muskelgruppe etwa 2× pro Woche.'
+            : 'Drücken, Ziehen, Beine, zweimal pro Woche. Viel Volumen, braucht gute Erholung.',
+      recommended: false,
+    });
+  }
+  options.push({ id: 'custom', label: 'Individuell', description: 'Du legst den Schwerpunkt jedes Trainingstags selbst fest.', recommended: false });
+  return options.map((o) => ({ ...o, recommended: o.id === recommended }));
+}
+
+export const SPLIT_LABELS: Record<SplitId, string> = { full: 'Ganzkörper', upper_lower: 'Oberkörper/Unterkörper', ppl: 'Push/Pull/Legs', custom: 'Individuell' };
+
+/** Schwerpunkte je Trainingstag für eine Aufteilung (ohne Erholungstage). */
+function splitFocuses(split: SplitId, n: number): DayFocus[] {
+  switch (split) {
+    case 'full':
+      return Array(n).fill('full');
+    case 'upper_lower':
+      return Array.from({ length: n }, (_, i) => (i % 2 === 0 ? 'upper' : 'lower'));
+    case 'ppl':
+      return n === 5 ? ['upper', 'lower', 'push', 'pull', 'legs'] : Array.from({ length: n }, (_, i) => (['push', 'pull', 'legs'] as DayFocus[])[i % 3]);
+    case 'custom':
+      return suggestFocuses(n, 'advanced');
+  }
+}
+
+/**
+ * Trainingstage für die gewählte Aufteilung. `weekdays` legt die Wochentage fest (sortiert).
+ * Bei „Individuell“ bleiben die Tage leer, der Nutzer wählt pro Tag einen Schwerpunkt.
+ */
+export function buildSplitDays(split: SplitId, profile: Profile, library: Exercise[], weekdays: number[]): PlanDay[] {
+  const n = strengthDayCount(weekdays.length, profile.experience);
+  const focuses: DayFocus[] = [...splitFocuses(split, n)];
+  // Erholungstage gleichmäßig einstreuen (wie beim automatischen Plan).
+  for (let i = 0; i < weekdays.length - n; i++) focuses.splice(Math.min(focuses.length, 2 + i * 2), 0, 'mobility');
+  const sorted = [...weekdays].sort((a, b) => a - b);
+  const seen: Partial<Record<DayFocus, number>> = {};
+  return sorted.map((weekday, i) => {
+    const focus = focuses[i] ?? 'full';
+    if (split === 'custom') return { id: `day_${weekday}_custom`, name: `Training ${i + 1}`, weekday, focus: '', exercises: [] };
+    const variant = seen[focus] ?? 0;
+    seen[focus] = variant + 1;
+    return { ...suggestDay(focus, profile, library, weekday, variant), focus: DAY_FOCUS_LABELS[focus] };
+  });
 }

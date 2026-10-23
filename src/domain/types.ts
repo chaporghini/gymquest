@@ -1,7 +1,9 @@
 // Kern-Datentypen von GYMQUEST. Diese Datei ist frei von UI- und Datenbankcode.
 
 export type Experience = 'beginner' | 'intermediate' | 'advanced';
-export type Goal = 'general' | 'strength' | 'hypertrophy' | 'mobility';
+/** mobility = Technik und sichere Ausführung lernen (historischer Schlüssel). */
+export type Goal = 'general' | 'strength' | 'hypertrophy' | 'full_body' | 'mobility';
+export type TrainingLocation = 'gym' | 'home' | 'outdoor';
 export type Equipment = 'gym' | 'dumbbells' | 'bodyweight' | 'kettlebell' | 'bands' | 'pullup_bar';
 export type Limitation = 'knees' | 'shoulders' | 'lower_back' | 'wrists';
 
@@ -25,6 +27,8 @@ export type MovementPattern =
   | 'pull_vertical'
   | 'arms'
   | 'core'
+  | 'calves'
+  | 'carry'
   | 'mobility';
 
 export type ExerciseCategory = 'compound' | 'isolation' | 'core' | 'mobility';
@@ -48,6 +52,8 @@ export interface Exercise {
   description: string;
   steps: string[];
   tips: string[];
+  /** Häufige Ausführungsfehler */
+  mistakes: string[];
 }
 
 export interface Profile {
@@ -59,6 +65,12 @@ export interface Profile {
   equipment: Equipment[];
   limitations: Limitation[];
   excludedExerciseIds: string[];
+  /** Optional: Wo trainiert wird. null = unbekannt. */
+  location?: TrainingLocation | null;
+  /** Optional: Muskeln, die besonders berücksichtigt werden sollen (Schlüssel aus muscles.ts). */
+  focusMuscles?: string[];
+  /** Optional: bisherige Trainingshistorie in eigenen Worten. */
+  history?: string;
   notes?: string;
   /** Optional, nie verpflichtend. Aktueller Wert; der Verlauf steht in `bodyLog`. */
   bodyWeightKg?: number | null;
@@ -108,6 +120,8 @@ export interface Settings {
   weightUnit: 'kg';
   /** Kleinste verfügbare Gewichtsstufe je Gerätetyp in kg (überschreibt die Standardwerte). */
   loadSteps?: Partial<Record<LoadType, number>>;
+  /** Abgelehnte Anpassungsvorschläge (IDs aus adaptations.ts) */
+  dismissedSuggestions?: string[];
 }
 
 export interface PlannedExercise {
@@ -135,6 +149,8 @@ export interface TrainingPlan {
   createdAt: string;
   split: string;
   days: PlanDay[];
+  /** Gesetzt, wenn der Nutzer den Plan gelöscht hat (bleibt für den Cloud-Abgleich erhalten). */
+  deletedAt?: string | null;
 }
 
 export interface SetLog {
@@ -170,6 +186,23 @@ export interface WorkoutSession {
   feedback?: ExerciseFeedback[];
   /** Selbst eingeschätzte Erholung vor dem Training, 1 = erschöpft … 5 = frisch */
   readiness?: number | null;
+  /** Momentaufnahme des Plans zum Zeitpunkt des Trainings. Spätere Planänderungen verändern sie nicht. */
+  planName?: string | null;
+  exercises?: SessionExercise[];
+}
+
+/** Geplante und tatsächliche Arbeit einer Übung in einem abgeschlossenen Training. */
+export interface SessionExercise {
+  exerciseId: string;
+  plannedSets: number;
+  repsMin: number;
+  repsMax: number;
+  durationSec?: number;
+  restSec: number;
+  completedSets: number;
+  skipped?: boolean;
+  /** Ursprünglich geplante Übung, wenn sie im Training ausgetauscht wurde. */
+  replacedExerciseId?: string;
 }
 
 /** Ein laufendes Training, das bei jeder Änderung gespeichert wird. */
@@ -186,14 +219,21 @@ export interface ActiveWorkout {
     targetDurationSec?: number;
     sets: SetLog[];
     feedback?: Omit<ExerciseFeedback, 'exerciseId'>;
+    skipped?: boolean;
+    replacedExerciseId?: string;
   }[];
+  planName?: string | null;
   readiness?: number | null;
   currentExerciseIndex: number;
   /** ISO-Zeitpunkt, an dem die laufende Pause endet. */
   restEndsAt: string | null;
+  /** Training angehalten seit (ISO). Angehaltene Zeit zählt nicht zur Trainingsdauer. */
+  pausedAt?: string | null;
+  /** Bisher angehaltene Sekunden */
+  pausedSec?: number;
 }
 
-export type XpSource = 'workout' | 'quest' | 'achievement';
+export type XpSource = 'workout' | 'quest' | 'achievement' | 'lesson' | 'chapter';
 
 export interface XpEvent {
   id: string;

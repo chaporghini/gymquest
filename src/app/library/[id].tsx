@@ -1,12 +1,14 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { SearchX, TriangleAlert } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { BookOpen, ChevronRight, CircleCheck, SearchX, TriangleAlert } from 'lucide-react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useMemo, useState } from 'react';
 
 import { AppText, Button, Card, EmptyState, Screen, Stepper } from '@/components';
-import { getExercise } from '@/data/exercises';
-import { categoryLabels, difficultyLabels, equipmentLabels, limitationLabels, muscleLabels } from '@/i18n/labels';
+import { EXERCISES, getExercise } from '@/data/exercises';
+import { alternativesFor, recommendedRanges } from '@/domain/exerciseInfo';
+import { isExerciseAllowed } from '@/domain/planGenerator';
+import { categoryLabels, difficultyLabels, equipmentLabels, goalLabels, limitationLabels, muscleLabels } from '@/i18n/labels';
 import { recommendExerciseLoad } from '@/domain/training';
 import { muscleLoad } from '@/domain/muscles';
 import { BodyMap } from '@/features/BodyMap';
@@ -16,7 +18,7 @@ import { colors, radius, spacing } from '@/theme/tokens';
 
 export default function ExerciseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { profile, sessions, settings, saveKnownLoad } = useApp();
+  const { profile, sessions, settings, saveKnownLoad, xpEvents } = useApp();
   const exercise = getExercise(id);
   const known = profile?.knownLoads?.find((k) => k.exerciseId === id);
   const [knownWeight, setKnownWeight] = useState<number | null>(known?.weightKg ?? null);
@@ -37,6 +39,9 @@ export default function ExerciseDetail() {
   }
 
   const conflicts = exercise.stresses.filter((s) => profile?.limitations.includes(s));
+  const lessonDone = xpEvents.some((e) => e.source === 'lesson' && e.refId === exercise.id);
+  const alternatives = alternativesFor(exercise, EXERCISES).slice(0, 5);
+  const ranges = recommendedRanges(exercise, exercise.category === 'mobility' ? ['mobility'] : exercise.category === 'isolation' ? ['hypertrophy', 'general'] : ['hypertrophy', 'strength', 'general']);
 
   return (
     <Screen edges={['bottom']}>
@@ -54,6 +59,18 @@ export default function ExerciseDetail() {
       <Card>
         <BodyMap load={muscleLoad([exercise.id])} showList />
       </Card>
+
+      <Pressable
+        onPress={() => router.push({ pathname: '/lesson/[id]', params: { id: exercise.id } })}
+        accessibilityRole="button"
+        style={styles.lesson}>
+        {lessonDone ? <CircleCheck size={22} color={colors.accent} /> : <BookOpen size={22} color={colors.accent} />}
+        <View style={styles.flex}>
+          <AppText variant="bodyStrong">Techniklektion</AppText>
+          <AppText variant="small" tone="secondary">{lessonDone ? 'Abgeschlossen. Du kannst sie jederzeit wiederholen.' : 'Ausführung, häufige Fehler und eine kurze Frage · +20 XP'}</AppText>
+        </View>
+        <ChevronRight size={18} color={colors.textSecondary} />
+      </Pressable>
 
       {conflicts.length > 0 ? (
         <Card variant="secondary" style={styles.warn}>
@@ -113,6 +130,39 @@ export default function ExerciseDetail() {
         {exercise.tips.map((t, i) => <AppText key={i} tone="secondary">• {t}</AppText>)}
       </Card>
 
+      {exercise.mistakes.length ? (
+        <Card variant="secondary" style={styles.gap}>
+          <AppText variant="heading">Häufige Fehler</AppText>
+          {exercise.mistakes.map((m) => <AppText key={m} tone="secondary">• {m}</AppText>)}
+        </Card>
+      ) : null}
+
+      <Card style={styles.gap}>
+        <AppText variant="heading">Empfohlene Bereiche</AppText>
+        {ranges.map((r) => (
+          <Info key={r.goal} label={goalLabels[r.goal]} value={`${r.sets} Sätze × ${r.reps} · Pause ${r.rest}`} />
+        ))}
+        <AppText variant="small" tone="secondary">Ausgangswerte. Dein Plan passt sie an Erfahrung, Ziel und Trainingstage an.</AppText>
+      </Card>
+
+      {alternatives.length ? (
+        <Card style={styles.gap}>
+          <AppText variant="heading">Alternativen</AppText>
+          {alternatives.map((a) => {
+            const fits = !profile || isExerciseAllowed(a, profile);
+            return (
+              <Pressable key={a.id} onPress={() => router.push({ pathname: '/library/[id]', params: { id: a.id } })} accessibilityRole="button" style={styles.altRow}>
+                <View style={styles.flex}>
+                  <AppText>{a.name}</AppText>
+                  <AppText variant="small" tone={fits ? 'secondary' : 'warning'}>{fits ? `${difficultyLabels[a.difficulty]} · ${a.equipment.map((e) => equipmentLabels[e]).join(' oder ')}` : 'Passt nicht zu deiner Ausstattung oder Einschränkung'}</AppText>
+                </View>
+                <ChevronRight size={18} color={colors.textSecondary} />
+              </Pressable>
+            );
+          })}
+        </Card>
+      ) : null}
+
       <Card style={styles.gap}>
         <Info label="Equipment" value={exercise.equipment.map((e) => equipmentLabels[e]).join(', ')} />
         {exercise.secondaryMuscles.length > 0 ? <Info label="Nebenbei trainiert" value={exercise.secondaryMuscles.map((m) => muscleLabels[m]).join(', ')} /> : null}
@@ -144,4 +194,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-end' },
   info: { flexDirection: 'row', gap: spacing.md },
   infoLabel: { width: 130 },
+  lesson: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.accent },
+  altRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
 });

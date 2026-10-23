@@ -1,15 +1,22 @@
 import { router } from 'expo-router';
 import { Award, Crown, PartyPopper, Target } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card, EmptyState, LevelBadge, Screen, XPBar } from '@/components';
+import { getExercise } from '@/data/exercises';
 import { formatDuration } from '@/domain/dates';
+import { doneMuscleSets, loadFromSets } from '@/domain/muscleStats';
+import { MUSCLE_LABELS, MUSCLES } from '@/domain/muscles';
+import { compareEntries, exerciseHistory, fmt, toEntry } from '@/domain/training';
+import type { SetLog, WorkoutSession } from '@/domain/types';
+import { BodyMap } from '@/features/BodyMap';
+import { XP_REWARDS, XP_RULES } from '@/domain/xp';
 import { useApp } from '@/state/AppProvider';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 export default function WorkoutSummary() {
-  const { lastReward } = useApp();
+  const { lastReward, sessions } = useApp();
   const [scale] = useState(() => new Animated.Value(0.6));
   const [opacity] = useState(() => new Animated.Value(0));
 
@@ -21,6 +28,7 @@ export default function WorkoutSummary() {
   }, [scale, opacity]);
 
   const close = () => router.replace('/');
+  const details = useMemo(() => (lastReward ? sessionDetails(lastReward.session, sessions) : null), [lastReward, sessions]);
 
   if (!lastReward) {
     return (
@@ -69,11 +77,34 @@ export default function WorkoutSummary() {
         <AppText tone="secondary">{formatDuration(session.durationSec)} · {breakdown.completedSets} Sätze</AppText>
         <View style={styles.breakdown}>
           <Line label="Training abgeschlossen" value={breakdown.base} />
-          <Line label={`Sätze (${Math.min(breakdown.completedSets, 30)} × 4)`} value={breakdown.sets} />
-          {breakdown.completion > 0 ? <Line label="Alle Sätze erledigt" value={breakdown.completion} /> : null}
+          {breakdown.exercises > 0 ? <Line label={`Abgeschlossene Übungen (${breakdown.completedExercises} × ${XP_REWARDS.exercise})`} value={breakdown.exercises} /> : null}
+          {breakdown.base === 0 ? <AppText variant="small" tone="secondary">XP gibt es ab {XP_RULES.minSetsForWorkout} erledigten Sätzen.</AppText> : null}
           {breakdown.sameDayPenalty < 0 ? <Line label="Weiteres Training heute (Erholung zählt!)" value={breakdown.sameDayPenalty} /> : null}
         </View>
       </Card>
+
+      {details ? (
+        <Card style={styles.gap}>
+          <AppText variant="heading">Übungen</AppText>
+          {details.exercises.map((e) => (
+            <View key={e.exerciseId} style={styles.exercise}>
+              <AppText variant="bodyStrong">{getExercise(e.exerciseId)?.name ?? e.exerciseId}</AppText>
+              {e.note ? <AppText variant="small" tone="warning">{e.note}</AppText> : null}
+              {e.sets ? <AppText variant="small" tone="secondary">{e.sets}</AppText> : null}
+              {e.comparison ? <AppText variant="small" tone={e.comparison.result === 'improved' ? 'accent' : 'secondary'}>Im Vergleich zum letzten Mal: {e.comparison.text}</AppText> : null}
+            </View>
+          ))}
+          <AppText variant="small" tone="secondary">{details.reps} Wiederholungen · {details.sets} Sätze</AppText>
+        </Card>
+      ) : null}
+
+      {details && details.muscles.length ? (
+        <Card style={styles.gap}>
+          <AppText variant="heading">Trainierte Muskeln</AppText>
+          <BodyMap load={details.load} size={160} />
+          <AppText variant="small" tone="secondary">Direkt: {details.muscles.map((m) => MUSCLE_LABELS[m]).join(', ')}</AppText>
+        </Card>
+      ) : null}
 
       {rewards.length > 0 ? (
         <Card style={styles.gap}>
@@ -96,6 +127,29 @@ export default function WorkoutSummary() {
   );
 }
 
+const setText = (s: SetLog) => (s.durationSec ? `${s.durationSec} s` : `${s.reps ?? '–'}${s.weightKg ? ` × ${fmt(s.weightKg)} kg` : ''}`);
+
+/** Aufbereitung des gerade gespeicherten Trainings; Vergleiche nur mit derselben Übung. */
+function sessionDetails(session: WorkoutSession, all: WorkoutSession[]) {
+  const ids = session.exercises?.map((e) => e.exerciseId) ?? [...new Set(session.sets.map((s) => s.exerciseId))];
+  const exercises = ids.map((id) => {
+    const info = session.exercises?.find((e) => e.exerciseId === id);
+    const sets = session.sets.filter((s) => s.exerciseId === id);
+    const current = toEntry(session, id);
+    const previous = exerciseHistory(all.filter((s) => s.id !== session.id), id, new Date(session.startedAt))[0];
+    const note = info?.skipped ? 'Übersprungen' : info?.replacedExerciseId ? `Statt ${getExercise(info.replacedExerciseId)?.name ?? 'geplanter Übung'}` : null;
+    return { exerciseId: id, note, sets: sets.map(setText).join(' · '), comparison: current && previous ? compareEntries(current, previous) : null };
+  });
+  const map = doneMuscleSets([session], new Date(0), new Date(8.64e15));
+  return {
+    exercises,
+    sets: session.sets.length,
+    reps: session.sets.reduce((n, s) => n + (s.reps ?? 0), 0),
+    muscles: MUSCLES.filter((m) => map[m].direct > 0),
+    load: loadFromSets(map),
+  };
+}
+
 function Line({ label, value }: { label: string; value: number }) {
   return (
     <View style={styles.row}>
@@ -113,4 +167,5 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   gap: { gap: spacing.md },
   breakdown: { gap: spacing.sm },
+  exercise: { gap: 2 },
 });

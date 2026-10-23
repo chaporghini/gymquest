@@ -5,11 +5,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card, EmptyState, Screen, SectionHeader, WorkoutCard } from '@/components';
 import { WEEKDAYS_LONG, WEEKDAYS_SHORT } from '@/domain/dates';
-import { planMuscleLoad } from '@/domain/muscles';
 import { estimateDayMinutes } from '@/domain/planGenerator';
 import { getWeekOverview } from '@/domain/weekPlan';
 import { getNextSession } from '@/domain/workout';
-import { BodyMap } from '@/features/BodyMap';
+import { MuscleMapCard } from '@/features/MuscleMapCard';
+import { SuggestionsList } from '@/features/SuggestionsList';
 import { useApp } from '@/state/AppProvider';
 import { colors, radius, spacing } from '@/theme/tokens';
 
@@ -20,7 +20,6 @@ export default function Training() {
   const now = useMemo(() => new Date(), [sessions, plan]); // eslint-disable-line react-hooks/exhaustive-deps
   const week = useMemo(() => getWeekOverview(plan, sessions, now, now), [plan, sessions, now]);
   const next = useMemo(() => getNextSession(plan, sessions, now), [plan, sessions, now]);
-  const load = useMemo(() => planMuscleLoad(plan), [plan]);
 
   const start = async (dayId: string) => {
     setError(null);
@@ -37,7 +36,16 @@ export default function Training() {
     return (
       <Screen>
         <AppText variant="title" accessibilityRole="header">Training</AppText>
-        <EmptyState icon={CalendarPlus} title="Noch kein Trainingsplan" message="Stell dir deinen Plan selbst zusammen. Wir machen dir Vorschläge." actionLabel="Plan erstellen" onAction={() => router.push('/plan/builder')} />
+        <EmptyState
+          icon={CalendarPlus}
+          title="Deine Trainingsreise beginnt hier."
+          message="Erstelle deinen persönlichen Trainingsplan und entdecke, welche Muskelgruppen du trainierst."
+          actionLabel="+ Trainingsplan erstellen"
+          onAction={() => router.push('/plan/create')}
+        />
+        <SectionHeader title="Muskelkarte" />
+        <MuscleMapCard plan={null} sessions={sessions} />
+        <Button label="Übungsbibliothek" icon={BookOpen} variant="secondary" onPress={() => router.push('/library')} />
         {error ? <AppText tone="error">{error}</AppText> : null}
       </Screen>
     );
@@ -65,10 +73,10 @@ export default function Training() {
       ) : null}
       {error ? <AppText tone="error" accessibilityRole="alert">{error}</AppText> : null}
 
+      <SuggestionsList />
+
       <SectionHeader title="Muskeln in deinem Plan" />
-      <Card>
-        <BodyMap load={load} size={200} />
-      </Card>
+      <MuscleMapCard plan={plan} sessions={sessions} />
 
       <SectionHeader title="Diese Woche" actionLabel="Plan anpassen" onAction={() => router.push('/plan/builder')} />
       <Card padded={false}>

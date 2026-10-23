@@ -93,6 +93,8 @@ export const EXERCISE_MUSCLES: Record<string, Map> = {
   hip_flexor_stretch: m([], ['quads', 'glutes']),
   thoracic_rotation: m([], ['upper_back', 'obliques']),
   band_pull_apart: m(['rear_delts', 'upper_back'], ['traps']),
+  calf_raise: m(['calves']),
+  farmers_carry: m(['forearms', 'traps'], ['abs', 'obliques', 'upper_back', 'glutes']),
 };
 
 export function musclesOf(exerciseId: string): Map {

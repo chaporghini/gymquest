@@ -1,15 +1,15 @@
-import { Award, Dumbbell, Target } from 'lucide-react-native';
+import { Award, BookOpen, Dumbbell, Map, Target } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, Card, LevelBadge, RankList, Screen, SectionHeader, XPBar } from '@/components';
 import { formatDate } from '@/domain/dates';
 import { getNextRank } from '@/domain/ranks';
 import type { XpSource } from '@/domain/types';
-import { totalXpForLevel, xpToNextLevel, XP_RULES } from '@/domain/xp';
+import { totalXpForLevel, xpToNextLevel, XP_REWARDS, XP_RULES } from '@/domain/xp';
 import { useApp } from '@/state/AppProvider';
 import { colors, radius, spacing } from '@/theme/tokens';
 
-const SOURCE_ICON: Record<XpSource, typeof Award> = { workout: Dumbbell, quest: Target, achievement: Award };
+const SOURCE_ICON: Record<XpSource, typeof Award> = { workout: Dumbbell, quest: Target, achievement: Award, lesson: BookOpen, chapter: Map };
 
 export default function ProgressScreen() {
   const { level, rank, xpEvents } = useApp();
@@ -67,9 +67,12 @@ export default function ProgressScreen() {
       <SectionHeader title="So funktioniert die XP-Kurve" />
       <Card style={styles.gap}>
         <AppText tone="secondary">
-          Training: {XP_RULES.base} XP Basis (ab {XP_RULES.minSetsForWorkout} Sätzen) + {XP_RULES.perSet} XP pro abgeschlossenem Satz (max. {XP_RULES.maxCountedSets}) + {XP_RULES.completionBonus} XP, wenn alle geplanten Sätze erledigt sind. Ab dem zweiten Training am selben Tag gibt es {Math.round(XP_RULES.repeatSameDayFactor * 100)} % – Erholung zählt.
+          Trainingseinheit: {XP_REWARDS.workout} XP (ab {XP_RULES.minSetsForWorkout} Sätzen) + {XP_REWARDS.exercise} XP je Übung, bei der alle geplanten Sätze erledigt sind (max. {XP_RULES.maxCountedExercises}). Ab dem zweiten Training am selben Tag gibt es {Math.round(XP_RULES.repeatSameDayFactor * 100)} %, Erholung zählt.
         </AppText>
-        <AppText tone="secondary">Jedes Level kostet 50 XP mehr als das vorherige.</AppText>
+        <AppText tone="secondary">
+          Wochenziel {XP_REWARDS.weeklyGoal} XP · Techniklektion {XP_REWARDS.lesson} XP · Meilenstein {XP_REWARDS.milestone} XP · Quest-Kapitel {XP_REWARDS.chapter} XP. Jede Belohnung gibt es nur einmal.
+        </AppText>
+        <AppText tone="secondary">Schwelle für Level L: 100 × (L − 1) + 25 × (L − 1)² XP.</AppText>
         {upcoming.map((l) => (
           <View key={l} style={styles.curveRow}>
             <AppText style={styles.flex} tone={l === level.level ? 'accent' : 'primary'}>Level {l} → {l + 1}</AppText>

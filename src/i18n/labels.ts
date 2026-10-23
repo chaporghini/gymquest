@@ -1,8 +1,8 @@
-import type { Equipment, ExerciseCategory, Experience, Goal, Limitation, MuscleGroup } from '@/domain/types';
+import type { Equipment, ExerciseCategory, Experience, Goal, Limitation, MuscleGroup, TrainingLocation } from '@/domain/types';
 
 export const experienceLabels: Record<Experience, string> = {
   beginner: 'Anfänger',
-  intermediate: 'Fortgeschrittener Anfänger',
+  intermediate: 'Fortgeschritten',
   advanced: 'Erfahren',
 };
 
@@ -10,7 +10,14 @@ export const goalLabels: Record<Goal, string> = {
   general: 'Allgemeine Fitness',
   strength: 'Kraft',
   hypertrophy: 'Muskelaufbau',
-  mobility: 'Bewegungskompetenz',
+  full_body: 'Ganzkörpertraining',
+  mobility: 'Technik & sichere Ausführung',
+};
+
+export const locationLabels: Record<TrainingLocation, string> = {
+  gym: 'Fitnessstudio',
+  home: 'Zuhause',
+  outdoor: 'Draußen',
 };
 
 export const equipmentLabels: Record<Equipment, string> = {

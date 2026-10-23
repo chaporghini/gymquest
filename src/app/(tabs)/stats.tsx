@@ -6,11 +6,15 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { AppText, Card, Chip, EmptyState, Screen, SectionHeader } from '@/components';
 import { getExercise } from '@/data/exercises';
 import { addDays, formatDate, formatDuration } from '@/domain/dates';
+import { muscleDistribution } from '@/domain/muscleStats';
+import { MUSCLE_LABELS } from '@/domain/muscles';
 import { weeklyStreak } from '@/domain/progression';
 import { bodyWeightSeries, exerciseSeries, monthlySeries, periodLabel, trainedExercises, weeklySeries, xpSeries, type ExerciseMetric } from '@/domain/training';
+import { LEVEL_COLORS } from '@/features/BodyMap';
 import { Bars, ChartCard, Line } from '@/features/ChartCard';
+import { MuscleMapCard } from '@/features/MuscleMapCard';
 import { useApp } from '@/state/AppProvider';
-import { colors, spacing } from '@/theme/tokens';
+import { colors, radius, spacing } from '@/theme/tokens';
 
 type WeekMetric = 'workouts' | 'sets' | 'minutes';
 const WEEK_METRICS: Record<WeekMetric, { label: string; title: string; unit: string }> = {
@@ -28,8 +32,8 @@ const EXERCISE_METRICS: Record<ExerciseMetric, { label: string; unit: string }> 
   reps: { label: 'Wiederholungen', unit: 'beste Wdh. pro Satz' },
   duration: { label: 'Dauer', unit: 'Sekunden (beste Haltezeit)' },
 };
-type ChartKind = 'weeks' | 'months' | 'exercise' | 'xp' | 'body';
-const CHARTS: Record<ChartKind, string> = { weeks: 'Wochen', months: 'Monate', exercise: 'Übungen', xp: 'XP & Level', body: 'Körpergewicht' };
+type ChartKind = 'weeks' | 'months' | 'exercise' | 'muscles' | 'xp' | 'body';
+const CHARTS: Record<ChartKind, string> = { weeks: 'Wochen', months: 'Monate', exercise: 'Übungen', muscles: 'Muskeln', xp: 'XP & Level', body: 'Körpergewicht' };
 const WEEKS = 8;
 const MONTHS = 6;
 const XP_WEEKS = 12;
@@ -52,6 +56,9 @@ export default function Stats() {
   const exercisePoints = useMemo(() => (chosen ? exerciseSeries(sessions, chosen.id, metric) : []), [sessions, chosen, metric]);
   const xp = useMemo(() => xpSeries(xpEvents, now, XP_WEEKS), [xpEvents, now]);
   const bodyWeight = useMemo(() => bodyWeightSeries(profile), [profile]);
+  const muscleFrom = useMemo(() => addDays(weekly[WEEKS - 4].start, 0), [weekly]);
+  const distribution = useMemo(() => muscleDistribution(sessions, muscleFrom, addDays(now, 1)), [sessions, muscleFrom, now]);
+  const maxDirect = Math.max(1, ...distribution.map((d) => d.direct + d.indirect));
 
   const records = useMemo(() => {
     const best = new Map<string, { weight: number; reps: number }>();
@@ -92,10 +99,10 @@ export default function Stats() {
         </View>
         <ChevronRight size={18} color={colors.textSecondary} />
       </Card>
-      <Card onPress={() => router.push('/quests')} accessibilityLabel="Quests und Achievements öffnen" style={styles.reportLink}>
+      <Card onPress={() => router.push('/quests')} accessibilityLabel="Quests und Erfolge öffnen" style={styles.reportLink}>
         <Trophy size={22} color={colors.warning} />
         <View style={styles.flex}>
-          <AppText variant="bodyStrong">Quests & Achievements</AppText>
+          <AppText variant="bodyStrong">Quests & Erfolge</AppText>
           <AppText variant="small" tone="secondary">Level {level.level} · {rank.name}</AppText>
         </View>
         <ChevronRight size={18} color={colors.textSecondary} />
@@ -180,6 +187,29 @@ export default function Stats() {
         {(width) => <Line width={width} data={exercisePoints} fromZero={metric !== 'weight'} />}
       </ChartCard> : null}
 
+      {chart === 'muscles' ? (
+        <Card style={styles.gapSm}>
+          <AppText variant="heading">Muskelgruppenverteilung</AppText>
+          <AppText variant="small" tone="secondary">Letzte 4 Wochen ({periodLabel(muscleFrom, now)}) · abgehakte Sätze</AppText>
+          {distribution.every((d) => d.direct + d.indirect === 0) ? (
+            <AppText tone="secondary">In den letzten vier Wochen wurde noch kein Training gespeichert.</AppText>
+          ) : (
+            distribution.map((d) => (
+              <View key={d.muscle} style={styles.distRow} accessible accessibilityLabel={`${MUSCLE_LABELS[d.muscle]}: ${d.direct} direkte, ${d.indirect} indirekte Sätze`}>
+                <AppText variant="small" style={styles.distLabel} tone={d.direct + d.indirect === 0 ? 'secondary' : 'primary'}>{MUSCLE_LABELS[d.muscle]}</AppText>
+                <View style={styles.distTrack}>
+                  <View style={[styles.distBar, { flex: d.direct / maxDirect, backgroundColor: LEVEL_COLORS.primary }]} />
+                  <View style={[styles.distBar, { flex: d.indirect / maxDirect, backgroundColor: LEVEL_COLORS.secondary }]} />
+                  <View style={{ flex: Math.max(0, 1 - (d.direct + d.indirect) / maxDirect) }} />
+                </View>
+                <AppText variant="small" tone="secondary" style={styles.distValue}>{d.direct}</AppText>
+              </View>
+            ))
+          )}
+          <AppText variant="small" tone="secondary">Rot: direkte Sätze (Zahl), gelb: indirekte Beteiligung. Muskeln mit 0 wurden selten oder gar nicht trainiert.</AppText>
+        </Card>
+      ) : null}
+
       {chart === 'xp' ? <ChartCard
         title="XP und Level"
         period={`Letzte ${XP_WEEKS} Wochen, Stand am Wochenende`}
@@ -205,6 +235,9 @@ export default function Stats() {
         footnote="Nur deine Einträge, ohne Bewertung.">
         {(width) => <Line width={width} data={bodyWeight} fromZero={false} />}
       </ChartCard> : null}
+
+      <SectionHeader title="Muskelkarte" />
+      <MuscleMapCard plan={plan} sessions={sessions} initialMode="done" size={180} />
 
       {records.length > 0 ? (
         <>
@@ -269,4 +302,9 @@ const styles = StyleSheet.create({
   recordRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   historyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' },
   divider: { borderTopWidth: 1, borderTopColor: colors.border },
+  distRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  distLabel: { width: 120 },
+  distTrack: { flex: 1, height: 10, flexDirection: 'row', borderRadius: radius.sm, overflow: 'hidden', backgroundColor: colors.cardSecondary },
+  distBar: { height: '100%' },
+  distValue: { width: 28, textAlign: 'right' },
 });

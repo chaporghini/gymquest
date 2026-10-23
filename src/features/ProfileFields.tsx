@@ -6,8 +6,9 @@ import { ChevronRight } from 'lucide-react-native';
 import { AppText, Chip, Stepper } from '@/components';
 import { EXERCISES } from '@/data/exercises';
 import { equipmentValues, limitationValues, type ProfileForm } from '@/domain/profileSchema';
-import type { Experience, Goal } from '@/domain/types';
-import { equipmentLabels, experienceLabels, goalLabels, limitationLabels } from '@/i18n/labels';
+import type { Experience, Goal, TrainingLocation } from '@/domain/types';
+import { equipmentLabels, experienceLabels, goalLabels, limitationLabels, locationLabels } from '@/i18n/labels';
+import { MUSCLE_LABELS, type Muscle } from '@/domain/muscles';
 import { colors, radius, spacing, typography } from '@/theme/tokens';
 
 interface FieldProps {
@@ -86,7 +87,8 @@ const goalHints: Record<Goal, string> = {
   general: 'Ausgewogenes Training für Alltag und Gesundheit.',
   strength: 'Schwerere Gewichte, weniger Wiederholungen.',
   hypertrophy: 'Mittlere Wiederholungen für Muskelwachstum.',
-  mobility: 'Mehr Mobilität, Rumpf und kontrollierte Kraft.',
+  full_body: 'Jede Einheit trainiert den ganzen Körper.',
+  mobility: 'Bewegungen sauber lernen: Mobilität, Rumpf und kontrollierte Kraft.',
 };
 
 export function GoalField({ control }: FieldProps) {
@@ -141,6 +143,85 @@ export function ScheduleFields({ control, errors }: FieldProps) {
         />
       </View>
     </>
+  );
+}
+
+const FOCUS_CHOICES: Muscle[] = ['chest', 'side_delts', 'lats', 'upper_back', 'biceps', 'triceps', 'abs', 'glutes', 'quads', 'hamstrings', 'calves'];
+
+export function LocationField({ control }: FieldProps) {
+  return (
+    <View style={styles.field}>
+      <Label title="Trainingsort (optional)" />
+      <Controller
+        control={control}
+        name="location"
+        render={({ field }) => (
+          <View style={styles.chips} accessibilityRole="radiogroup">
+            {(Object.keys(locationLabels) as TrainingLocation[]).map((key) => (
+              <Chip key={key} role="radio" label={locationLabels[key]} selected={field.value === key} onPress={() => field.onChange(field.value === key ? null : key)} />
+            ))}
+          </View>
+        )}
+      />
+    </View>
+  );
+}
+
+export function FocusField({ control, errors }: FieldProps) {
+  return (
+    <View style={styles.field}>
+      <Label title="Muskelgruppen mit Schwerpunkt (optional)" hint="Bis zu 4. Sie kommen im Plan sicher direkt vor." />
+      <Controller
+        control={control}
+        name="focusMuscles"
+        render={({ field }) => {
+          const value = field.value ?? [];
+          return (
+            <View style={styles.chips}>
+              {FOCUS_CHOICES.map((m) => {
+                const selected = value.includes(m);
+                return (
+                  <Chip
+                    key={m}
+                    role="checkbox"
+                    label={MUSCLE_LABELS[m]}
+                    selected={selected}
+                    onPress={() => field.onChange(selected ? value.filter((v) => v !== m) : value.length < 4 ? [...value, m] : value)}
+                  />
+                );
+              })}
+            </View>
+          );
+        }}
+      />
+      <FieldError message={errors.focusMuscles?.message} />
+    </View>
+  );
+}
+
+export function HistoryField({ control, errors }: FieldProps) {
+  return (
+    <View style={styles.field}>
+      <Label title="Bisherige Trainingshistorie (optional)" hint="Zum Beispiel: 2 Jahre Fußball, seit 6 Monaten Krafttraining." />
+      <Controller
+        control={control}
+        name="history"
+        render={({ field }) => (
+          <TextInput
+            value={field.value ?? ''}
+            onChangeText={field.onChange}
+            onBlur={field.onBlur}
+            multiline
+            maxLength={300}
+            placeholder="Optional"
+            placeholderTextColor={colors.textSecondary}
+            accessibilityLabel="Bisherige Trainingshistorie"
+            style={[styles.input, styles.multiline]}
+          />
+        )}
+      />
+      <FieldError message={errors.history?.message} />
+    </View>
   );
 }
 

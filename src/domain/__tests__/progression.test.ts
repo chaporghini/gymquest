@@ -102,8 +102,8 @@ describe('Quests und Achievements', () => {
   });
 
   it('schaltet Level-Achievements über Achievement-XP frei', () => {
-    // 620 + 40 (Quest) + 50 (Erstes Training) = 710 XP ≥ 700 XP für Level 5
-    const xpEvents: XpEvent[] = [{ id: 'w', source: 'workout', refId: 'w', amount: 620, createdAt: '', label: '' }];
+    // 760 + 40 (Quest) + 30 (Meilenstein erstes Training) = 830 XP ≥ 800 XP für Level 5
+    const xpEvents: XpEvent[] = [{ id: 'w', source: 'workout', refId: 'w', amount: 760, createdAt: '', label: '' }];
     const rewards = collectPendingRewards({ sessions: [session('1', 'a', new Date(2026, 9, 19, 18))], xpEvents, plan, now: thursday }, id);
     expect(rewards.map((r) => r.refId)).toContain('level_5');
   });
@@ -138,6 +138,7 @@ describe('Trainingsablauf', () => {
     expect(s.sets).toHaveLength(3);
     expect(s.durationSec).toBe(2400);
     expect(xp.total).toBe(s.xpEarned);
-    expect(xp.completion).toBe(0);
+    expect(xp.completedExercises).toBe(1);
+    expect(s.exercises?.map((e) => e.completedSets)).toEqual([2, 1]);
   });
 });

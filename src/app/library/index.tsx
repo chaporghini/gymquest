@@ -5,9 +5,12 @@ import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Chip, EmptyState, ExerciseCard, Screen } from '@/components';
 import { EXERCISES } from '@/data/exercises';
+import { exerciseGoals, exerciseLocations } from '@/domain/exerciseInfo';
+import { MUSCLE_LABELS, MUSCLES, musclesOf, type Muscle } from '@/domain/muscles';
 import { isExerciseAllowed, prescribe } from '@/domain/planGenerator';
-import type { ExerciseCategory, MuscleGroup } from '@/domain/types';
-import { categoryLabels, muscleLabels } from '@/i18n/labels';
+import { equipmentValues } from '@/domain/profileSchema';
+import type { Equipment, Goal, TrainingLocation } from '@/domain/types';
+import { difficultyLabels, equipmentLabels, goalLabels, locationLabels } from '@/i18n/labels';
 import { useApp } from '@/state/AppProvider';
 import { colors, radius, spacing, typography } from '@/theme/tokens';
 
@@ -15,8 +18,12 @@ export default function Library() {
   const { pickFor } = useLocalSearchParams<{ pickFor?: string }>();
   const { profile, plan, savePlan } = useApp();
   const [query, setQuery] = useState('');
-  const [muscle, setMuscle] = useState<MuscleGroup | null>(null);
-  const [category, setCategory] = useState<ExerciseCategory | null>(null);
+  const [muscle, setMuscle] = useState<Muscle | null>(null);
+  const [equipment, setEquipment] = useState<Equipment | null>(null);
+  const [difficulty, setDifficulty] = useState<1 | 2 | 3 | null>(null);
+  const [goal, setGoal] = useState<Goal | null>(null);
+  const [location, setLocation] = useState<TrainingLocation | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
   const [onlyMine, setOnlyMine] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,12 +31,26 @@ export default function Library() {
     const q = query.trim().toLowerCase();
     return EXERCISES.filter((e) => {
       if (q && !`${e.name} ${e.description}`.toLowerCase().includes(q)) return false;
-      if (muscle && e.muscleGroup !== muscle && !e.secondaryMuscles.includes(muscle)) return false;
-      if (category && e.category !== category) return false;
+      if (muscle) {
+        const m = musclesOf(e.id);
+        if (!m.primary.includes(muscle) && !m.secondary.includes(muscle)) return false;
+      }
+      if (equipment && !e.equipment.includes(equipment)) return false;
+      if (difficulty && e.difficulty !== difficulty) return false;
+      if (goal && !exerciseGoals(e).includes(goal)) return false;
+      if (location && !exerciseLocations(e).includes(location)) return false;
       if (onlyMine && profile && !isExerciseAllowed(e, { ...profile, excludedExerciseIds: [] })) return false;
       return true;
     });
-  }, [query, muscle, category, onlyMine, profile]);
+  }, [query, muscle, equipment, difficulty, goal, location, onlyMine, profile]);
+  const active = [muscle, equipment, difficulty, goal, location].filter((x) => x !== null).length;
+  const reset = () => {
+    setMuscle(null);
+    setEquipment(null);
+    setDifficulty(null);
+    setGoal(null);
+    setLocation(null);
+  };
 
   const pickDay = pickFor ? plan?.days.find((d) => d.id === pickFor) : undefined;
 
@@ -68,21 +89,30 @@ export default function Library() {
         />
       </View>
 
-      <FilterRow label="Muskelgruppe">
-        <Chip label="Alle" selected={!muscle} onPress={() => setMuscle(null)} role="radio" />
-        {(Object.keys(muscleLabels) as MuscleGroup[]).map((m) => (
-          <Chip key={m} label={muscleLabels[m]} selected={muscle === m} onPress={() => setMuscle(muscle === m ? null : m)} role="radio" />
-        ))}
-      </FilterRow>
-      <FilterRow label="Art">
-        <Chip label="Alle" selected={!category} onPress={() => setCategory(null)} role="radio" />
-        {(Object.keys(categoryLabels) as ExerciseCategory[]).map((c) => (
-          <Chip key={c} label={categoryLabels[c]} selected={category === c} onPress={() => setCategory(category === c ? null : c)} role="radio" />
-        ))}
-      </FilterRow>
       <View style={styles.chipsWrap}>
-        <Chip label="Nur mit meinem Equipment" role="checkbox" selected={onlyMine} onPress={() => setOnlyMine((v) => !v)} />
+        <Chip label={active ? `Filter (${active})` : 'Filter'} selected={showFilters || active > 0} onPress={() => setShowFilters((v) => !v)} />
+        <Chip label="Nur mit meiner Ausstattung" role="checkbox" selected={onlyMine} onPress={() => setOnlyMine((v) => !v)} />
+        {active ? <Chip label="Zurücksetzen" onPress={reset} /> : null}
       </View>
+      {showFilters ? (
+        <>
+          <FilterRow label="Muskelgruppe">
+            {MUSCLES.map((m) => <Chip key={m} label={MUSCLE_LABELS[m]} selected={muscle === m} onPress={() => setMuscle(muscle === m ? null : m)} role="radio" />)}
+          </FilterRow>
+          <FilterRow label="Gerät">
+            {equipmentValues.map((x) => <Chip key={x} label={equipmentLabels[x]} selected={equipment === x} onPress={() => setEquipment(equipment === x ? null : x)} role="radio" />)}
+          </FilterRow>
+          <FilterRow label="Schwierigkeit">
+            {([1, 2, 3] as const).map((d) => <Chip key={d} label={difficultyLabels[d]} selected={difficulty === d} onPress={() => setDifficulty(difficulty === d ? null : d)} role="radio" />)}
+          </FilterRow>
+          <FilterRow label="Trainingsziel">
+            {(Object.keys(goalLabels) as Goal[]).map((g) => <Chip key={g} label={goalLabels[g]} selected={goal === g} onPress={() => setGoal(goal === g ? null : g)} role="radio" />)}
+          </FilterRow>
+          <FilterRow label="Trainingsort">
+            {(Object.keys(locationLabels) as TrainingLocation[]).map((l) => <Chip key={l} label={locationLabels[l]} selected={location === l} onPress={() => setLocation(location === l ? null : l)} role="radio" />)}
+          </FilterRow>
+        </>
+      ) : null}
 
       {error ? <AppText tone="error" accessibilityRole="alert">{error}</AppText> : null}
       <AppText variant="small" tone="secondary">{results.length} Übungen</AppText>
@@ -94,8 +124,7 @@ export default function Library() {
           actionLabel="Filter zurücksetzen"
           onAction={() => {
             setQuery('');
-            setMuscle(null);
-            setCategory(null);
+            reset();
             setOnlyMine(false);
           }}
         />
@@ -124,6 +153,6 @@ const styles = StyleSheet.create({
   input: { ...typography.body, flex: 1, color: colors.text, minHeight: 48 },
   filter: { gap: spacing.xs },
   chips: { gap: spacing.sm, paddingRight: spacing.lg },
-  chipsWrap: { flexDirection: 'row' },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   list: { gap: spacing.sm },
 });

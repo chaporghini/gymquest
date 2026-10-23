@@ -33,7 +33,7 @@ export default function HistoryDetail() {
     <Screen edges={['bottom']}>
       <View style={styles.header}>
         <AppText variant="title" accessibilityRole="header">{session.name}</AppText>
-        <AppText tone="secondary">{formatDate(session.finishedAt)}</AppText>
+        <AppText tone="secondary">{formatDate(session.finishedAt)}{session.planName ? ` · ${session.planName}` : ''}</AppText>
       </View>
       <View style={styles.grid}>
         <StatCard label="Dauer" value={formatDuration(session.durationSec)} />
@@ -44,6 +44,12 @@ export default function HistoryDetail() {
       {grouped.map(([exerciseId, sets], i) => (
         <Card key={`${exerciseId}-${i}`} style={styles.gap}>
           <AppText variant="bodyStrong">{getExercise(exerciseId)?.name ?? exerciseId}</AppText>
+          {(() => {
+            const info = session.exercises?.find((e) => e.exerciseId === exerciseId);
+            if (!info) return null;
+            const replaced = info.replacedExerciseId ? ` · statt ${getExercise(info.replacedExerciseId)?.name ?? 'geplanter Übung'}` : '';
+            return <AppText variant="small" tone="secondary">{info.completedSets} von {info.plannedSets} geplanten Sätzen{replaced}</AppText>;
+          })()}
           {sets.map((s, j) => (
             <View key={j} style={[styles.row, j > 0 && styles.divider]}>
               <AppText tone="secondary" style={styles.setNo}>Satz {j + 1}</AppText>
@@ -53,6 +59,11 @@ export default function HistoryDetail() {
               </AppText>
             </View>
           ))}
+        </Card>
+      ))}
+      {session.exercises?.filter((e) => e.skipped && e.completedSets === 0).map((e) => (
+        <Card key={`skip-${e.exerciseId}`} variant="secondary">
+          <AppText tone="secondary">{getExercise(e.exerciseId)?.name ?? e.exerciseId}: übersprungen</AppText>
         </Card>
       ))}
     </Screen>

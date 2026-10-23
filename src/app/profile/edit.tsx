@@ -8,14 +8,14 @@ import { AppText, Button, Card, ConfirmDialog, Screen } from '@/components';
 import { Trash2 } from 'lucide-react-native';
 import { formFromProfile, profileFormSchema, type ProfileForm } from '@/domain/profileSchema';
 import { currentAge } from '@/domain/training';
-import { BodyFields, EquipmentField, ExperienceField, GoalField, LimitationFields, NameField, ScheduleFields } from '@/features/ProfileFields';
+import { BodyFields, EquipmentField, ExperienceField, FocusField, GoalField, HistoryField, LimitationFields, LocationField, NameField, ScheduleFields } from '@/features/ProfileFields';
 import { useApp } from '@/state/AppProvider';
 import { colors, spacing } from '@/theme/tokens';
 
 export default function EditProfile() {
   const { profile, updateProfile, clearBodyData } = useApp();
   const [confirmClear, setConfirmClear] = useState(false);
-  const [regenerate, setRegenerate] = useState(true);
+  const [regenerate, setRegenerate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { control, formState, handleSubmit, setValue } = useForm<ProfileForm>({
     resolver: zodResolver(profileFormSchema),
@@ -51,15 +51,18 @@ export default function EditProfile() {
       <ExperienceField {...props} />
       <GoalField {...props} />
       <ScheduleFields {...props} />
+      <LocationField {...props} />
       <EquipmentField {...props} />
+      <FocusField {...props} />
       <LimitationFields {...props} />
+      <HistoryField {...props} />
       <AppText variant="heading" accessibilityRole="header">Über dich</AppText>
       <BodyFields {...props} />
       <Button label="Körperdaten löschen" variant="secondary" icon={Trash2} onPress={() => setConfirmClear(true)} />
       <Card variant="secondary" style={styles.toggle}>
         <View style={styles.flex}>
           <AppText variant="bodyStrong">Trainingsplan neu erstellen</AppText>
-          <AppText variant="small" tone="secondary">Empfohlen, wenn du Tage, Ziel oder Equipment geändert hast. Eigene Planänderungen gehen dabei verloren.</AppText>
+          <AppText variant="small" tone="secondary">Erstellt aus den neuen Angaben sofort einen neuen Plan. Eigene Planänderungen gehen dabei verloren. Ohne Haken bleibt dein Plan, und unter Training erscheinen passende Vorschläge.</AppText>
         </View>
         <Switch
           value={regenerate}

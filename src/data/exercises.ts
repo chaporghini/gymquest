@@ -1,9 +1,11 @@
 import type { Exercise } from '@/domain/types';
 
+import { EXERCISE_MISTAKES } from './exerciseMistakes';
+
 // Lokale Übungsbibliothek. Die Anleitungen sind allgemeine Technikhinweise und ersetzen keine
 // persönliche Betreuung durch Trainer oder medizinisches Fachpersonal.
 
-export const EXERCISES: Exercise[] = [
+const BASE: Omit<Exercise, 'mistakes'>[] = [
   // --- Kniebeuge-Muster -------------------------------------------------------
   {
     id: 'goblet_squat',
@@ -763,7 +765,52 @@ export const EXERCISES: Exercise[] = [
     steps: ['Halte das Band schulterbreit vor dir.', 'Ziehe es auseinander bis zur Brust.', 'Kontrolliert zurück, kontinuierlich wiederholen.'],
     tips: ['Leichtes Band wählen.'],
   },
+  // --- Waden und Griff -------------------------------------------------------
+  {
+    id: 'calf_raise',
+    name: 'Wadenheben',
+    muscleGroup: 'legs',
+    secondaryMuscles: [],
+    pattern: 'calves',
+    category: 'isolation',
+    equipment: ['bodyweight', 'dumbbells', 'gym'],
+    difficulty: 1,
+    stresses: [],
+    measurement: 'reps',
+    usesWeight: true,
+    description: 'Stärkt die Waden. Geht auf einer Treppenstufe, mit oder ohne Zusatzgewicht.',
+    steps: [
+      'Stelle die Fußballen auf eine Stufe, die Fersen hängen frei.',
+      'Halte dich leicht fest, damit du sicher stehst.',
+      'Drücke dich langsam so hoch wie möglich auf die Zehenspitzen.',
+      'Senke die Fersen kontrolliert unter die Stufe ab.',
+    ],
+    tips: ['Oben kurz halten.', 'Langsam absenken.'],
+  },
+  {
+    id: 'farmers_carry',
+    name: "Farmer's Walk",
+    muscleGroup: 'full_body',
+    secondaryMuscles: ['core', 'shoulders'],
+    pattern: 'carry',
+    category: 'core',
+    equipment: ['dumbbells', 'kettlebell', 'gym'],
+    difficulty: 1,
+    stresses: ['lower_back'],
+    measurement: 'time',
+    usesWeight: true,
+    description: 'Schwere Gewichte tragen: trainiert Griff, Nacken und Rumpfstabilität.',
+    steps: [
+      'Hebe zwei Kurzhanteln oder Kettlebells mit geradem Rücken vom Boden.',
+      'Stehe aufrecht, Schultern nach hinten unten.',
+      'Gehe mit kurzen, ruhigen Schritten für die vorgegebene Zeit.',
+      'Setze die Gewichte mit geradem Rücken wieder ab.',
+    ],
+    tips: ['Blick nach vorn.', 'Lieber leichter und dafür aufrecht.'],
+  },
 ];
+
+export const EXERCISES: Exercise[] = BASE.map((e) => ({ ...e, mistakes: EXERCISE_MISTAKES[e.id] ?? [] }));
 
 export const EXERCISE_MAP: Record<string, Exercise> = Object.fromEntries(EXERCISES.map((e) => [e.id, e]));
 

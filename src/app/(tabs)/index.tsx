@@ -18,12 +18,14 @@ import {
 } from '@/components';
 import { addDays, isSameDay, WEEKDAYS_LONG, WEEKDAYS_SHORT, weekdayIndex } from '@/domain/dates';
 import { getGreeting } from '@/domain/greeting';
-import { dayMuscleLoad } from '@/domain/muscles';
-import { computeWeeklyQuests, summarizeWeek } from '@/domain/progression';
+import { dayMuscleLoad, MUSCLE_LABELS } from '@/domain/muscles';
+import { computeChapters, computeWeeklyQuests, summarizeWeek } from '@/domain/progression';
+import { lastTrainedMuscles } from '@/domain/muscleStats';
 import { getNextRank } from '@/domain/ranks';
 import { getWeekOverview } from '@/domain/weekPlan';
 import { getNextSession } from '@/domain/workout';
 import { BodyMap } from '@/features/BodyMap';
+import { ChapterCard } from '@/features/ChapterCard';
 import { useApp } from '@/state/AppProvider';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -36,7 +38,10 @@ export default function Home() {
 
   const next = useMemo(() => getNextSession(plan, sessions, now), [plan, sessions, now]);
   const week = useMemo(() => summarizeWeek(sessions, plan, now), [sessions, plan, now]);
-  const quests = useMemo(() => computeWeeklyQuests({ sessions, xpEvents, plan, now }), [sessions, xpEvents, plan, now]);
+  const progressInput = useMemo(() => ({ sessions, xpEvents, plan, now, experience: profile?.experience, startedAt: profile?.createdAt }), [sessions, xpEvents, plan, now, profile]);
+  const quests = useMemo(() => computeWeeklyQuests(progressInput), [progressInput]);
+  const chapter = useMemo(() => computeChapters(progressInput).find((c) => c.status === 'active') ?? null, [progressInput]);
+  const lastTrained = useMemo(() => lastTrainedMuscles(sessions), [sessions]);
   const overview = useMemo(() => getWeekOverview(plan, sessions, now, now), [plan, sessions, now]);
   const nextLoad = useMemo(() => (next ? dayMuscleLoad(next.day) : null), [next]);
   const nextRank = getNextRank(level.level);
@@ -89,12 +94,12 @@ export default function Home() {
           <Info size={20} color={colors.warning} />
           <View style={styles.flex}>
             <AppText variant="bodyStrong">Profil vervollständigen</AppText>
-            <AppText variant="small" tone="secondary">Du nutzt einen Standardplan. Mit deinen Angaben wird er passender.</AppText>
+            <AppText variant="small" tone="secondary">Mit deinen Angaben werden Plan und Vorschläge passender.</AppText>
           </View>
         </Card>
       ) : null}
 
-      <SectionHeader title="Nächstes Training" actionLabel="Plan ansehen" onAction={() => router.push('/training')} />
+      <SectionHeader title="Nächstes Training" {...(plan ? { actionLabel: 'Plan bearbeiten', onAction: () => router.push('/plan/builder') } : {})} />
       {activeWorkout ? (
         <Card variant="highlight" style={styles.gap}>
           <AppText variant="caption" tone="accent">LÄUFT GERADE</AppText>
@@ -113,10 +118,10 @@ export default function Home() {
       ) : (
         <EmptyState
           icon={CalendarDays}
-          title="Noch kein Trainingsplan"
-          message="Lass dir aus deinem Profil einen Wochenplan erstellen. Du kannst ihn danach jederzeit anpassen."
-          actionLabel="Trainingsplan erstellen"
-          onAction={() => app.regeneratePlan().catch((e) => setStartError(e instanceof Error ? e.message : 'Plan konnte nicht erstellt werden.'))}
+          title="Deine Trainingsreise beginnt hier."
+          message="Erstelle deinen persönlichen Trainingsplan und entdecke, welche Muskelgruppen du trainierst."
+          actionLabel="+ Trainingsplan erstellen"
+          onAction={() => router.push('/plan/create')}
         />
       )}
       {!activeWorkout && next && nextLoad ? (
@@ -138,6 +143,7 @@ export default function Home() {
           <View style={styles.flex}>
             <AppText variant="caption" tone="accent">RANG</AppText>
             <AppText variant="heading">{rank.name}</AppText>
+            <AppText variant="small" tone="secondary">Level {level.level} · {level.totalXp} XP gesamt</AppText>
             <AppText variant="small" tone="secondary">{nextRank ? `Nächster Rang: ${nextRank.name} ab Level ${nextRank.minLevel}` : 'Höchster Rang erreicht'}</AppText>
           </View>
         </View>
@@ -145,50 +151,61 @@ export default function Home() {
       </Card>
 
 
-      <SectionHeader title="Diese Woche" actionLabel="Dein Fortschritt" onAction={() => router.push('/report')} />
-      <Card
-        style={styles.weekCard}
-        onPress={() => router.push('/training')}
-        accessibilityLabel={`Diese Woche: ${week.workouts} von ${week.goal} Einheiten erledigt, ${week.sets} Sätze`}
-        accessibilityHint="Öffnet den Wochenplan">
-        <ProgressRing value={overview.planned ? overview.completed / overview.planned : 0} size={92}>
-          <AppText variant="heading">{overview.completed}/{overview.planned}</AppText>
-          <AppText variant="caption" tone="secondary">EINHEITEN</AppText>
-        </ProgressRing>
-        <View style={styles.weekStats}>
-          <View style={styles.days}>
-            {overview.days.map((d, i) => {
-              const label = WEEKDAYS_SHORT[i];
-              const today = i === weekdayIndex(now);
-              const statusText = { rest: 'Ruhetag', planned: 'geplant', today: 'heute geplant', done: 'erledigt', missed: 'nicht absolviert' }[d.status];
-              return (
-                <View key={label} style={styles.dayCol} accessibilityLabel={`${WEEKDAYS_LONG[i]}: ${statusText}`}>
-                  <View
-                    style={[
-                      styles.dayDot,
-                      d.planDay && styles.dayPlanned,
-                      d.status === 'missed' && styles.dayMissed,
-                      d.status === 'done' && styles.dayDone,
-                      today && styles.dayToday,
-                    ]}
-                  />
-                  <AppText variant="caption" tone={today ? 'accent' : 'secondary'}>{label}</AppText>
-                </View>
-              );
-            })}
-          </View>
-          <AppText variant="small" tone="secondary">
-            {overview.completed} von {overview.planned} geplanten Einheiten erledigt
-            {overview.extraSessions > 0 ? ` · ${overview.extraSessions} zusätzlich` : ''}
-          </AppText>
-          <AppText variant="small" tone="secondary">
-            {week.sets} Sätze · {week.minutes} min Training
-          </AppText>
-          {overview.planned > 0 && overview.completed >= overview.planned ? (
-            <AppText variant="small" tone="accent">Alle geplanten Einheiten erledigt.</AppText>
-          ) : null}
-        </View>
-      </Card>
+      {plan ? (
+        <>
+          <SectionHeader title="Diese Woche" actionLabel="Dein Fortschritt" onAction={() => router.push('/report')} />
+          <Card
+            style={styles.weekCard}
+            onPress={() => router.push('/training')}
+            accessibilityLabel={`Diese Woche: ${week.workouts} von ${week.goal} Einheiten erledigt, ${week.sets} Sätze`}
+            accessibilityHint="Öffnet den Wochenplan">
+            <ProgressRing value={overview.planned ? overview.completed / overview.planned : 0} size={92}>
+              <AppText variant="heading">{overview.completed}/{overview.planned}</AppText>
+              <AppText variant="caption" tone="secondary">EINHEITEN</AppText>
+            </ProgressRing>
+            <View style={styles.weekStats}>
+              <View style={styles.days}>
+                {overview.days.map((d, i) => {
+                  const label = WEEKDAYS_SHORT[i];
+                  const today = i === weekdayIndex(now);
+                  const statusText = { rest: 'Ruhetag', planned: 'geplant', today: 'heute geplant', done: 'erledigt', missed: 'nicht absolviert' }[d.status];
+                  return (
+                    <View key={label} style={styles.dayCol} accessibilityLabel={`${WEEKDAYS_LONG[i]}: ${statusText}`}>
+                      <View
+                        style={[
+                          styles.dayDot,
+                          d.planDay && styles.dayPlanned,
+                          d.status === 'missed' && styles.dayMissed,
+                          d.status === 'done' && styles.dayDone,
+                          today && styles.dayToday,
+                        ]}
+                      />
+                      <AppText variant="caption" tone={today ? 'accent' : 'secondary'}>{label}</AppText>
+                    </View>
+                  );
+                })}
+              </View>
+              <AppText variant="small" tone="secondary">
+                {overview.completed} von {overview.planned} geplanten Einheiten erledigt
+                {overview.extraSessions > 0 ? ` · ${overview.extraSessions} zusätzlich` : ''}
+              </AppText>
+              <AppText variant="small" tone="secondary">
+                {week.sets} Sätze · {week.minutes} min Training
+              </AppText>
+              {overview.planned > 0 && overview.completed >= overview.planned ? (
+                <AppText variant="small" tone="accent">Alle geplanten Einheiten erledigt.</AppText>
+              ) : null}
+            </View>
+          </Card>
+        </>
+      ) : null}
+
+      {lastTrained && lastTrained.muscles.length ? (
+        <Card onPress={() => router.push('/stats')} accessibilityHint="Öffnet deinen Fortschritt" style={styles.gapSm}>
+          <AppText variant="caption" tone="secondary">ZULETZT TRAINIERT · {WEEKDAYS_LONG[weekdayIndex(new Date(lastTrained.session.finishedAt))].toUpperCase()}</AppText>
+          <AppText>{lastTrained.muscles.slice(0, 6).map((m) => MUSCLE_LABELS[m]).join(', ')}</AppText>
+        </Card>
+      ) : null}
 
       <SectionHeader title="Nächste Quest" actionLabel="Alle Quests" onAction={() => router.push('/quests')} />
       {activeQuests.length > 0 ? (
@@ -197,6 +214,8 @@ export default function Home() {
             <QuestCard key={q.id} quest={q} compact onPress={() => router.push({ pathname: '/quest/[id]', params: { id: q.id } })} />
           ))}
         </View>
+      ) : chapter ? (
+        <ChapterCard chapter={chapter} compact onPress={() => router.push('/quests')} />
       ) : (
         <Card variant="highlight" style={styles.hint}>
           <Sparkles size={20} color={colors.accent} />
@@ -213,6 +232,7 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '700' },
   flex: { flex: 1 },
   gap: { gap: spacing.md },
+  gapSm: { gap: spacing.xs },
   levelCard: { gap: spacing.lg },
   levelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   hint: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

@@ -1,16 +1,19 @@
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Info, Minus, Plus, SkipForward, Timer, Trash } from 'lucide-react-native';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Info, Minus, Pause, Play, Plus, Repeat, SkipForward, Timer, Trash } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card, Chip, ConfirmDialog, EmptyState, ProgressBar, Screen, Stepper } from '@/components';
-import { getExercise } from '@/data/exercises';
+import { EXERCISES, getExercise } from '@/data/exercises';
+import { alternativesFor } from '@/domain/exerciseInfo';
+import { MUSCLE_LABELS, musclesOf } from '@/domain/muscles';
+import { prescribe } from '@/domain/planGenerator';
 import { formatClock } from '@/domain/dates';
 import { formatRir, loadStepFor, loadTypeOf, recommendExerciseLoad } from '@/domain/training';
 import type { ActiveWorkout, Effort, ExerciseFeedback, SetLog } from '@/domain/types';
-import { completedSetCount, plannedSetCount } from '@/domain/workout';
+import { activeDurationSec, completedSetCount, lastSetsByExercise, plannedSetCount, replaceActiveExercise, togglePause, toggleSkipExercise } from '@/domain/workout';
 import { RecommendationCard } from '@/features/RecommendationCard';
 import { useApp } from '@/state/AppProvider';
 import { colors, MIN_TOUCH, radius, spacing } from '@/theme/tokens';
@@ -48,6 +51,8 @@ export default function ActiveWorkoutScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const restNotified = useRef<string | null>(null);
+  const [swapOpen, setSwapOpen] = useState(false);
+  const lastSets = useMemo(() => lastSetsByExercise(sessions), [sessions]);
 
   const exIndexRaw = workout ? Math.min(workout.currentExerciseIndex, workout.exercises.length - 1) : 0;
   const currentRaw = workout?.exercises[exIndexRaw];
@@ -91,7 +96,15 @@ export default function ActiveWorkoutScreen() {
   const exIndex = Math.min(workout.currentExerciseIndex, workout.exercises.length - 1);
   const current = workout.exercises[exIndex];
   const exercise = getExercise(current.exerciseId);
-  const elapsed = Math.floor((now - new Date(workout.startedAt).getTime()) / 1000);
+  const elapsed = activeDurationSec(workout, new Date(now));
+  const paused = !!workout.pausedAt;
+  const muscles = musclesOf(current.exerciseId);
+  const previous = lastSets[current.exerciseId]?.filter((s) => s.completed) ?? [];
+  const previousText = previous.length
+    ? previous.map((s) => (s.durationSec ? `${s.durationSec} s` : `${s.reps ?? '–'}${s.weightKg ? ` × ${s.weightKg} kg` : ''}`)).join(' · ')
+    : null;
+  const alternatives = exercise && profile ? alternativesFor(exercise, EXERCISES, profile).filter((a) => !workout.exercises.some((e) => e.exerciseId === a.id)).slice(0, 4) : [];
+  const canSwap = !current.sets.some((st) => st.completed);
   const done = completedSetCount(workout);
   const total = plannedSetCount(workout);
   const restSec = settings.defaultRestSeconds ?? current.restSec;
@@ -187,6 +200,21 @@ export default function ActiveWorkoutScreen() {
     }
   };
 
+  const skip = () => {
+    const skipping = !current.skipped;
+    update((w) => {
+      const next = toggleSkipExercise(w, exIndex);
+      return skipping && exIndex < w.exercises.length - 1 ? { ...next, currentExerciseIndex: exIndex + 1, restEndsAt: null } : next;
+    });
+  };
+
+  const swapTo = (exerciseId: string) => {
+    const ex = EXERCISES.find((e) => e.id === exerciseId);
+    if (!ex || !profile) return;
+    update((w) => replaceActiveExercise(w, exIndex, prescribe(ex, profile), lastSets[ex.id] ?? []) ?? w);
+    setSwapOpen(false);
+  };
+
   const restActive = !!workout.restEndsAt && restRemaining > 0;
 
   return (
@@ -228,10 +256,21 @@ export default function ActiveWorkoutScreen() {
           <AppText variant="caption" tone="secondary">{workout.name.toUpperCase()}</AppText>
           <AppText variant="heading" accessibilityLabel={`Trainingszeit ${formatClock(elapsed)}`}>{formatClock(elapsed)}</AppText>
         </View>
-        <Pressable onPress={() => setDialog('discard')} accessibilityRole="button" accessibilityLabel="Training verwerfen" hitSlop={8} style={styles.iconBtn}>
-          <Trash size={20} color={colors.textSecondary} />
-        </Pressable>
+        <View style={styles.topActions}>
+          <Pressable onPress={() => update((w) => togglePause(w, new Date()))} accessibilityRole="button" accessibilityLabel={paused ? 'Training fortsetzen' : 'Training anhalten'} hitSlop={8} style={styles.iconBtn}>
+            {paused ? <Play size={22} color={colors.accent} /> : <Pause size={22} color={colors.text} />}
+          </Pressable>
+          <Pressable onPress={() => setDialog('discard')} accessibilityRole="button" accessibilityLabel="Training verwerfen" hitSlop={8} style={styles.iconBtn}>
+            <Trash size={20} color={colors.textSecondary} />
+          </Pressable>
+        </View>
       </View>
+      {paused ? (
+        <Card variant="highlight" style={styles.pausedCard}>
+          <AppText variant="bodyStrong" style={styles.flex}>Training angehalten. Deine Eingaben sind gespeichert.</AppText>
+          <Button label="Fortsetzen" icon={Play} size="sm" onPress={() => update((w) => togglePause(w, new Date()))} />
+        </Card>
+      ) : null}
       <View style={styles.progress}>
         <ProgressBar value={total ? done / total : 0} height={6} accessibilityLabel={`${done} von ${total} Sätzen erledigt`} />
         <AppText variant="small" tone="secondary">{done} von {total} Sätzen</AppText>
@@ -256,15 +295,16 @@ export default function ActiveWorkoutScreen() {
         {workout.exercises.map((e, i) => {
           const ex = getExercise(e.exerciseId);
           const allDone = e.sets.every((s) => s.completed);
+          const label = e.skipped ? 'übersprungen' : allDone ? 'erledigt' : '';
           return (
             <Pressable
               key={`${e.exerciseId}-${i}`}
               onPress={() => goTo(i)}
               accessibilityRole="tab"
               accessibilityState={{ selected: i === exIndex }}
-              accessibilityLabel={`Übung ${i + 1}: ${ex?.name ?? e.exerciseId}${allDone ? ', erledigt' : ''}`}
-              style={[styles.exTab, i === exIndex && styles.exTabActive, allDone && styles.exTabDone]}>
-              <AppText variant="small" tone={i === exIndex ? 'accent' : allDone ? 'secondary' : 'primary'} numberOfLines={1}>
+              accessibilityLabel={`Übung ${i + 1}: ${ex?.name ?? e.exerciseId}${label ? `, ${label}` : ''}`}
+              style={[styles.exTab, i === exIndex && styles.exTabActive, (allDone || e.skipped) && styles.exTabDone]}>
+              <AppText variant="small" tone={i === exIndex ? 'accent' : allDone || e.skipped ? 'secondary' : 'primary'} numberOfLines={1} style={e.skipped ? styles.strike : undefined}>
                 {allDone ? '✓ ' : ''}{ex?.name ?? e.exerciseId}
               </AppText>
             </Pressable>
@@ -280,6 +320,11 @@ export default function ActiveWorkoutScreen() {
             <AppText variant="small" tone="secondary">
               Ziel: {isTime ? `${current.targetDurationSec ?? 30} s` : `${current.targetRepsMin}–${current.targetRepsMax} Wdh.`} · Pause {restSec} s
             </AppText>
+            <AppText variant="small" tone="secondary">
+              Primär: {muscles.primary.map((m) => MUSCLE_LABELS[m]).join(', ') || '–'}
+              {muscles.secondary.length ? ` · Sekundär: ${muscles.secondary.map((m) => MUSCLE_LABELS[m]).join(', ')}` : ''}
+            </AppText>
+            {current.replacedExerciseId ? <AppText variant="small" tone="warning">Ersetzt {getExercise(current.replacedExerciseId)?.name ?? 'die geplante Übung'}</AppText> : null}
           </View>
           {exercise ? (
             <Pressable
@@ -293,7 +338,17 @@ export default function ActiveWorkoutScreen() {
           ) : null}
         </View>
 
-        {recommendation ? <RecommendationCard recommendation={recommendation} compact /> : null}
+        {exercise ? <AppText variant="small">{exercise.steps[0]} {exercise.tips[0] ?? ''}</AppText> : null}
+        <AppText variant="small" tone="secondary">{previousText ? `Zuletzt: ${previousText}` : 'Noch keine Werte von früher. Starte mit einem Gewicht, das du sicher kontrollierst.'}</AppText>
+
+        {current.skipped ? (
+          <Card variant="secondary" style={styles.feedbackCard}>
+            <AppText>Diese Übung ist übersprungen und wird so in der Historie vermerkt.</AppText>
+            <Button label="Doch machen" size="sm" variant="secondary" onPress={skip} />
+          </Card>
+        ) : null}
+
+        {recommendation && !current.skipped ? <RecommendationCard recommendation={recommendation} compact /> : null}
 
         {current.sets.map((set, j) => (
           <View key={j} style={[styles.setRow, set.completed && styles.setDone]}>
@@ -317,6 +372,23 @@ export default function ActiveWorkoutScreen() {
             </Pressable>
           </View>
         ))}
+
+        <View style={styles.setActions}>
+          {!current.skipped ? <Button label="Überspringen" icon={SkipForward} variant="ghost" size="sm" onPress={skip} /> : null}
+          {canSwap && alternatives.length ? <Button label="Austauschen" icon={Repeat} variant="ghost" size="sm" onPress={() => setSwapOpen((v) => !v)} /> : null}
+        </View>
+        {swapOpen && canSwap ? (
+          <View style={styles.feedbackCard}>
+            <AppText variant="bodyStrong">Austauschen gegen</AppText>
+            {alternatives.map((a) => (
+              <Pressable key={a.id} onPress={() => swapTo(a.id)} accessibilityRole="button" style={styles.swapRow}>
+                <Repeat size={16} color={colors.accent} />
+                <AppText style={styles.flex}>{a.name}</AppText>
+              </Pressable>
+            ))}
+            <AppText variant="small" tone="secondary">Nur Alternativen mit gleichem Bewegungsmuster, die zu deiner Ausstattung passen.</AppText>
+          </View>
+        ) : null}
 
         <View style={styles.setActions}>
           <Button label="Satz hinzufügen" icon={Plus} variant="ghost" size="sm" onPress={addSet} />
@@ -393,6 +465,10 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   center: { alignItems: 'center' },
+  topActions: { flexDirection: 'row' },
+  pausedCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  strike: { textDecorationLine: 'line-through' },
+  swapRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH },
   iconBtn: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
   progress: { gap: spacing.xs },
   noGrow: { flexGrow: 0 },

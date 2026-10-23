@@ -9,12 +9,13 @@ import { TrackingRepository } from '@/data/sync';
 import { createId } from '@/domain/dates';
 import { generateTrainingPlan } from '@/domain/planGenerator';
 import { DEFAULT_PROFILE_FORM, profileFromForm, type ProfileForm } from '@/domain/profileSchema';
+import { applySuggestion, type Suggestion } from '@/domain/adaptations';
 import { collectPendingRewards } from '@/domain/progression';
 import { getRank, type Rank } from '@/domain/ranks';
 import { clearBodyData, recommendationsForDay, withBodyChanges, type TrainingData } from '@/domain/training';
 import type { ActiveWorkout, Profile, Settings, TrainingPlan, WorkoutSession, XpEvent } from '@/domain/types';
 import { createActiveWorkout, finishWorkout, lastSetsByExercise } from '@/domain/workout';
-import { getLevelProgress, type LevelProgress, type WorkoutXpBreakdown } from '@/domain/xp';
+import { getLevelProgress, XP_REWARDS, type LevelProgress, type WorkoutXpBreakdown } from '@/domain/xp';
 import { useCloudSync, type CloudSync } from './useCloudSync';
 
 export interface RewardSummary {
@@ -44,6 +45,8 @@ interface AppContextValue {
   completeOnboarding: (form: ProfileForm) => Promise<void>;
   skipOnboarding: () => Promise<void>;
   updateProfile: (form: ProfileForm, regeneratePlan: boolean) => Promise<void>;
+  /** Einzelne Profilangaben ändern, z. B. aus dem Plan-Ersteller. */
+  patchProfile: (patch: Partial<Profile>) => Promise<void>;
   clearBodyData: () => Promise<void>;
   /** Bekannte Leistung als Startpunkt für eine Übung speichern (null löscht sie). */
   saveKnownLoad: (exerciseId: string, value: { weightKg: number; reps: number } | null) => Promise<void>;
@@ -51,7 +54,13 @@ interface AppContextValue {
   trainingData: TrainingData;
   updateSettings: (patch: Partial<Settings>) => Promise<void>;
   savePlan: (plan: TrainingPlan) => Promise<void>;
+  /** Löscht den aktuellen Plan. Vergangene Trainings bleiben unverändert. */
+  deletePlan: () => Promise<void>;
   regeneratePlan: () => Promise<void>;
+  /** Techniklektion abschließen (einmal je Übung belohnt). */
+  completeLesson: (exerciseId: string) => Promise<XpEvent[]>;
+  acceptSuggestion: (s: Suggestion) => Promise<void>;
+  dismissSuggestion: (id: string) => Promise<void>;
   startWorkout: (planDayId: string) => Promise<ActiveWorkout>;
   updateActiveWorkout: (updater: (w: ActiveWorkout) => ActiveWorkout) => void;
   discardWorkout: () => Promise<void>;
@@ -70,6 +79,9 @@ function createRepository(): GymRepository {
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
+
+/** Ein gelöschter Plan bleibt gespeichert (für den Cloud-Abgleich), gilt aber als „kein Plan“. */
+const visiblePlan = (p: TrainingPlan | null) => (p && !p.deletedAt ? p : null);
 
 export function AppProvider({ children, repository }: { children: ReactNode; repository?: GymRepository }) {
   // Alle Schreibzugriffe der App laufen über TrackingRepository, damit sie in die Cloud übertragen werden.
@@ -108,7 +120,7 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
         if (cancelled) return;
         setProfile(p);
         setSettings(s);
-        setPlan(pl);
+        setPlan(visiblePlan(pl));
         setSessions(ss);
         setXpEvents(xp);
         setActiveWorkout(aw);
@@ -137,7 +149,7 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
     ]);
     setProfile(p);
     setSettings(s);
-    setPlan(pl);
+    setPlan(visiblePlan(pl));
     setSessions(ss);
     setXpEvents(xp);
   }, [repo]);
@@ -158,26 +170,32 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
   const completeOnboarding = useCallback(async (form: ProfileForm) => {
     const now = new Date();
     const p = withBodyChanges(null, profileFromForm(form, now.toISOString(), true, null, now), now, () => createId('body'));
+    // Kein automatischer Plan: der Nutzer erstellt ihn bewusst über den Plan-Ersteller.
     await repo.saveProfile(p);
-    await createPlanFor(p);
     setProfile(p);
-  }, [repo, createPlanFor]);
+  }, [repo]);
 
   const skipOnboarding = useCallback(async () => {
-    // Standardprofil, damit Plan und Training sofort funktionieren. Später im Profil anpassbar.
+    // Fehlende Angaben bleiben auf Standardwerten und sind als unvollständig markiert. Später im Profil anpassbar.
     const p = profileFromForm(DEFAULT_PROFILE_FORM, new Date().toISOString(), false);
     await repo.saveProfile(p);
-    await createPlanFor(p);
     setProfile(p);
-  }, [repo, createPlanFor]);
+  }, [repo]);
 
   const updateProfile = useCallback(async (form: ProfileForm, regenerate: boolean) => {
     const now = new Date();
     const p = withBodyChanges(profile, profileFromForm(form, profile?.createdAt ?? now.toISOString(), true, profile, now), now, () => createId('body'));
     await repo.saveProfile(p);
     setProfile(p);
-    if (regenerate || !plan) await createPlanFor(p);
-  }, [repo, profile, plan, createPlanFor]);
+    if (regenerate) await createPlanFor(p);
+  }, [repo, profile, createPlanFor]);
+
+  const patchProfile = useCallback(async (patch: Partial<Profile>) => {
+    if (!profile) return;
+    const p = { ...profile, ...patch };
+    await repo.saveProfile(p);
+    setProfile(p);
+  }, [repo, profile]);
 
   const clearBody = useCallback(async () => {
     if (!profile) return;
@@ -203,10 +221,47 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
     setSettings(next);
   }, [repo, settings]);
 
+  /** Verbucht alle fälligen Quest-, Kapitel- und Meilenstein-Belohnungen für den angegebenen Stand. */
+  const grantRewards = useCallback(async (state: { plan: TrainingPlan | null; xpEvents: XpEvent[] }) => {
+    const rewards = collectPendingRewards(
+      { sessions, xpEvents: state.xpEvents, plan: state.plan, now: new Date(), experience: profile?.experience, startedAt: profile?.createdAt },
+      () => createId('xp'),
+    );
+    if (rewards.length) await repo.addXpEvents(rewards);
+    const next = [...rewards.slice().reverse(), ...state.xpEvents];
+    setXpEvents(next);
+    return rewards;
+  }, [repo, sessions, profile]);
+
   const savePlan = useCallback(async (next: TrainingPlan) => {
-    await repo.savePlan(next);
-    setPlan(next);
-  }, [repo]);
+    const clean = { ...next, deletedAt: null };
+    await repo.savePlan(clean);
+    setPlan(clean);
+    await grantRewards({ plan: clean, xpEvents });
+  }, [repo, grantRewards, xpEvents]);
+
+  const deletePlan = useCallback(async () => {
+    if (!plan) return;
+    await repo.savePlan({ ...plan, deletedAt: new Date().toISOString() });
+    setPlan(null);
+  }, [repo, plan]);
+
+  const completeLesson = useCallback(async (exerciseId: string) => {
+    if (xpEvents.some((e) => e.source === 'lesson' && e.refId === exerciseId)) return [];
+    const now = new Date();
+    const name = EXERCISES.find((e) => e.id === exerciseId)?.name ?? exerciseId;
+    const event: XpEvent = { id: createId('xp'), source: 'lesson', refId: exerciseId, amount: XP_REWARDS.lesson, createdAt: now.toISOString(), label: `Techniklektion: ${name}` };
+    await repo.addXpEvents([event]);
+    const rewards = await grantRewards({ plan, xpEvents: [event, ...xpEvents] });
+    return [event, ...rewards];
+  }, [repo, xpEvents, plan, grantRewards]);
+
+  const dismissSuggestion = useCallback(async (id: string) => {
+    const list = [...new Set([...(settings.dismissedSuggestions ?? []), id])].slice(-200);
+    const next = { ...settings, dismissedSuggestions: list };
+    await repo.saveSettings(next);
+    setSettings(next);
+  }, [repo, settings]);
 
   const regeneratePlan = useCallback(async () => {
     if (profile) await createPlanFor(profile);
@@ -227,11 +282,24 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
     const now = new Date();
     const recs = recommendationsForDay(trainingData, day.id, now);
     const suggested = Object.fromEntries(Object.entries(recs).map(([id, r]) => [id, r.suggestedLoadKg]));
-    const workout = createActiveWorkout(day, createId('session'), now, lastSetsByExercise(sessions), suggested);
+    const workout = createActiveWorkout(day, createId('session'), now, lastSetsByExercise(sessions), suggested, plan?.name ?? null);
     setActiveWorkout(workout);
     await persistActive(workout);
     return workout;
   }, [plan, sessions, trainingData, persistActive]);
+
+  const acceptSuggestion = useCallback(async (sg: Suggestion) => {
+    if (sg.action.type === 'catch_up') {
+      await startWorkout(sg.action.dayId);
+      return;
+    }
+    if (sg.action.type === 'open_exercise' || !plan || !profile) return;
+    const next = applySuggestion(plan, sg.action, profile, EXERCISES);
+    if (next) {
+      await repo.savePlan(next);
+      setPlan(next);
+    }
+  }, [plan, profile, repo, startWorkout]);
 
   const updateActiveWorkout = useCallback((updater: (w: ActiveWorkout) => ActiveWorkout) => {
     const current = activeRef.current;
@@ -264,7 +332,10 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
     };
     const nextSessions = [session, ...sessions];
     const eventsWithWorkout = [workoutEvent, ...xpEvents];
-    const rewards = collectPendingRewards({ sessions: nextSessions, xpEvents: eventsWithWorkout, plan, now }, () => createId('xp'));
+    const rewards = collectPendingRewards(
+      { sessions: nextSessions, xpEvents: eventsWithWorkout, plan, now, experience: profile?.experience, startedAt: profile?.createdAt },
+      () => createId('xp'),
+    );
     const allNew = [workoutEvent, ...rewards];
 
     await repo.saveSession(session, allNew);
@@ -287,7 +358,7 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
     setXpEvents(nextEvents);
     setLastReward(summary);
     return summary;
-  }, [repo, sessions, xpEvents, plan, level.level]);
+  }, [repo, sessions, xpEvents, plan, level.level, profile]);
 
   const resetAll = useCallback(async () => {
     await writeQueue.current;
@@ -330,12 +401,17 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
     completeOnboarding,
     skipOnboarding,
     updateProfile,
+    patchProfile,
     clearBodyData: clearBody,
     saveKnownLoad,
     trainingData,
     updateSettings,
     savePlan,
+    deletePlan,
     regeneratePlan,
+    completeLesson,
+    acceptSuggestion,
+    dismissSuggestion,
     startWorkout,
     updateActiveWorkout,
     discardWorkout,

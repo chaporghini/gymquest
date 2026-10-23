@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
-import { ChevronRight, Cloud, CloudOff, RotateCcw, Settings, Trash, Trophy } from 'lucide-react-native';
+import { CalendarPlus, ChevronRight, Cloud, CloudOff, History, Settings, Trash, Trophy } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card, ConfirmDialog, LevelBadge, Screen, SectionHeader } from '@/components';
 import { formatDate } from '@/domain/dates';
 import { currentAge } from '@/domain/training';
-import { equipmentLabels, experienceLabels, goalLabels, limitationLabels } from '@/i18n/labels';
+import { MUSCLE_LABELS, type Muscle } from '@/domain/muscles';
+import { equipmentLabels, experienceLabels, goalLabels, limitationLabels, locationLabels } from '@/i18n/labels';
 import { useApp } from '@/state/AppProvider';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -19,7 +20,7 @@ const BUILD_TIME = (() => {
 export default function Profile() {
   const app = useApp();
   const { profile, level, rank, cloud } = app;
-  const [dialog, setDialog] = useState<'regenerate' | 'reset' | null>(null);
+  const [dialog, setDialog] = useState<'reset' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -44,9 +45,12 @@ export default function Profile() {
     ['Erfahrung', experienceLabels[profile.experience]],
     ['Ziel', goalLabels[profile.goal]],
     ['Rhythmus', `${profile.daysPerWeek} Tage · ${profile.sessionMinutes} min`],
-    ['Equipment', profile.equipment.map((e) => equipmentLabels[e]).join(', ')],
+    ['Ort', profile.location ? locationLabels[profile.location] : 'Unbekannt'],
+    ['Ausstattung', profile.equipment.map((e) => equipmentLabels[e]).join(', ')],
     ['Einschränkungen', profile.limitations.length ? profile.limitations.map((l) => limitationLabels[l]).join(', ') : 'Keine'],
   ];
+  if (profile.focusMuscles?.length) rows.push(['Schwerpunkte', profile.focusMuscles.map((m) => MUSCLE_LABELS[m as Muscle] ?? m).join(', ')]);
+  if (profile.history) rows.push(['Vorerfahrung', profile.history]);
   const age = currentAge(profile, new Date());
   if (age != null) rows.push(['Alter', `${age} Jahre`]);
   if (profile.heightCm) rows.push(['Größe', `${profile.heightCm.toLocaleString('de-DE')} cm`]);
@@ -60,7 +64,8 @@ export default function Profile() {
         <LevelBadge level={level.level} size="lg" />
         <View style={styles.flex}>
           <AppText variant="title" numberOfLines={1}>{profile.displayName}</AppText>
-          <AppText tone="accent">{rank.name}</AppText>
+          <AppText tone="accent">{rank.name} · Level {level.level}</AppText>
+          <AppText variant="small" tone="secondary">{level.totalXp} XP gesamt · {app.sessions.length} Trainings</AppText>
           <AppText variant="small" tone="secondary">Dabei seit {formatDate(profile.createdAt)}</AppText>
         </View>
       </Card>
@@ -78,8 +83,9 @@ export default function Profile() {
       <Card padded={false}>
         <LinkRow icon={Settings} title="Einstellungen" hint="Pausenzeit, Gewichtsstufen, Vibration" onPress={() => router.push('/settings')} />
         <LinkRow icon={cloud.user ? Cloud : CloudOff} iconColor={cloud.user ? colors.accent : colors.warning} title="Konto & Daten" hint={cloud.user ? `Sync aktiv · ${cloud.user.email}` : 'Nur auf diesem Gerät · Backup'} onPress={() => router.push('/account')} divider />
-        <LinkRow icon={Trophy} title="Quests & Achievements" hint={`Level ${level.level} · ${rank.name}`} onPress={() => router.push('/quests')} divider />
-        <LinkRow icon={RotateCcw} title="Plan automatisch erstellen" hint="Neuer Plan aus deinem Profil" onPress={() => setDialog('regenerate')} divider />
+        <LinkRow icon={Trophy} title="Quests & Erfolge" hint={`Level ${level.level} · ${rank.name}`} onPress={() => router.push('/quests')} divider />
+        <LinkRow icon={History} title="Trainingshistorie" hint="Alle Trainings, Berichte und Bestleistungen" onPress={() => router.push('/stats')} divider />
+        <LinkRow icon={CalendarPlus} title="Neuen Trainingsplan erstellen" hint="Schritt für Schritt aus deinen Angaben" onPress={() => router.push('/plan/create')} divider />
       </Card>
       <Button label="Alle Daten löschen" icon={Trash} variant="ghost" size="sm" onPress={() => setDialog('reset')} />
 
@@ -92,18 +98,9 @@ export default function Profile() {
       {BUILD_TIME ? <AppText variant="caption" tone="secondary" align="center">Version vom {BUILD_TIME}</AppText> : null}
 
       <ConfirmDialog
-        visible={dialog === 'regenerate'}
-        title="Plan neu erstellen?"
-        message="Dein aktueller Plan inklusive eigener Änderungen wird durch einen neuen Plan aus deinem Profil ersetzt. Trainingshistorie und XP bleiben erhalten."
-        confirmLabel="Neu erstellen"
-        loading={busy}
-        onConfirm={() => run(app.regeneratePlan, 'Neuer Trainingsplan erstellt.')}
-        onCancel={() => setDialog(null)}
-      />
-      <ConfirmDialog
         visible={dialog === 'reset'}
         title="Alle Daten löschen?"
-        message={`Profil, Plan, Trainingshistorie, XP und Achievements werden unwiderruflich von diesem Gerät gelöscht.${cloud.user ? ' Du wirst abgemeldet, die Daten in der Cloud bleiben erhalten.' : ''}`}
+        message={`Profil, Plan, Trainingshistorie, XP und Erfolge werden unwiderruflich von diesem Gerät gelöscht.${cloud.user ? ' Du wirst abgemeldet, die Daten in der Cloud bleiben erhalten.' : ''}`}
         confirmLabel="Endgültig löschen"
         destructive
         loading={busy}
