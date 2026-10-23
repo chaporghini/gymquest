@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import { CalendarDays, Info, Play, Sparkles } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { CalendarDays, CloudOff, Info, Play, Sparkles } from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import {
@@ -34,6 +34,12 @@ export default function Home() {
   const { profile, plan, sessions, xpEvents, level, rank, activeWorkout } = app;
   const [startError, setStartError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+
+  // Über den „Passwort vergessen“-Link geöffnet: direkt zum neuen Passwort.
+  const recovery = app.cloud.recovery;
+  useEffect(() => {
+    if (recovery) router.push('/account');
+  }, [recovery]);
   const now = useMemo(() => new Date(), [sessions, plan]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const next = useMemo(() => getNextSession(plan, sessions, now), [plan, sessions, now]);
@@ -95,6 +101,16 @@ export default function Home() {
           <View style={styles.flex}>
             <AppText variant="bodyStrong">Profil vervollständigen</AppText>
             <AppText variant="small" tone="secondary">Mit deinen Angaben werden Plan und Vorschläge passender.</AppText>
+          </View>
+        </Card>
+      ) : null}
+
+      {app.cloud.configured && app.cloud.ready && !app.cloud.user && sessions.length > 0 ? (
+        <Card variant="secondary" onPress={() => router.push('/account')} accessibilityLabel="Fortschritt sichern" style={styles.hint}>
+          <CloudOff size={20} color={colors.warning} />
+          <View style={styles.flex}>
+            <AppText variant="bodyStrong">Noch nicht gesichert</AppText>
+            <AppText variant="small" tone="secondary">Mit einem Konto ist dein Fortschritt auf allen Geräten sicher.</AppText>
           </View>
         </Card>
       ) : null}

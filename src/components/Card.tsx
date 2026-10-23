@@ -33,7 +33,7 @@ export function Card({ children, variant = 'default', onPress, accessibilityLabe
 const variantStyle = StyleSheet.create({
   default: { backgroundColor: colors.card, borderColor: colors.border },
   secondary: { backgroundColor: colors.cardSecondary, borderColor: colors.border },
-  highlight: { backgroundColor: colors.card, borderColor: 'rgba(199,255,85,0.35)' },
+  highlight: { backgroundColor: colors.card, borderColor: colors.accentBorder },
 });
 
 const styles = StyleSheet.create({

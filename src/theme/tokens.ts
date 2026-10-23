@@ -1,11 +1,37 @@
 import { Platform } from 'react-native';
 
+/** Wählbare Akzentfarben. Die Wahl gilt pro Gerät und wird beim Start gelesen. */
+export const ACCENTS = {
+  lime: { label: 'Lime', hex: '#C7FF55' },
+  blue: { label: 'Blau', hex: '#5AC8FF' },
+  violet: { label: 'Violett', hex: '#B79CFF' },
+  pink: { label: 'Pink', hex: '#FF7AC6' },
+} as const;
+export type AccentId = keyof typeof ACCENTS;
+export const ACCENT_STORAGE_KEY = 'gymquest:accent';
+
+function storedAccent(): AccentId {
+  try {
+    const v = Platform.OS === 'web' && typeof localStorage !== 'undefined' ? localStorage.getItem(ACCENT_STORAGE_KEY) : null;
+    return v && v in ACCENTS ? (v as AccentId) : 'lime';
+  } catch {
+    return 'lime';
+  }
+}
+
+export const currentAccent: AccentId = storedAccent();
+const accentHex = ACCENTS[currentAccent].hex;
+const muted = (hex: string, a: number) => `rgba(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}, ${a})`;
+
 export const colors = {
   background: '#0B0D0E',
   card: '#15191B',
   cardSecondary: '#202528',
-  accent: '#C7FF55',
-  accentMuted: 'rgba(199, 255, 85, 0.14)',
+  accent: accentHex,
+  accentMuted: muted(accentHex, 0.14),
+  accentFaint: muted(accentHex, 0.06),
+  accentBorder: muted(accentHex, 0.35),
+  accentHalf: muted(accentHex, 0.45),
   onAccent: '#0B0D0E',
   text: '#F5F7F2',
   textSecondary: '#929A9D',

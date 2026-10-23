@@ -68,7 +68,7 @@ export function Bars({ data, width, height = 160 }: { data: Bar[]; width: number
   return (
     <BarChart
       {...axis}
-      data={data.map((d) => ({ value: d.value, label: d.label, onPress: d.onPress, frontColor: d.selected ? colors.text : d.muted ? 'rgba(199,255,85,0.45)' : colors.accent }))}
+      data={data.map((d) => ({ value: d.value, label: d.label, onPress: d.onPress, frontColor: d.selected ? colors.text : d.muted ? colors.accentHalf : colors.accent }))}
       width={inner}
       height={height}
       barWidth={Math.max(10, inner / data.length - 12)}

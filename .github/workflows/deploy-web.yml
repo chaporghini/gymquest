@@ -44,7 +44,8 @@ jobs:
           kind=other; case "$KEY" in sb_publishable_*) kind=publishable;; eyJ*) kind=legacy-anon;; esac
           code=$(curl -s -o /dev/null -w '%{http_code}' -H "apikey: $KEY" "${URL%/}/auth/v1/settings")
           echo "::notice::Supabase-Key: Typ $kind, Länge ${#KEY}, Antwort von Supabase: $code"
-          if [ "$code" != "200" ]; then echo "::error::Supabase lehnt SUPABASE_KEY ab (HTTP $code). Bitte den Publishable Key unter Project Settings → API Keys neu kopieren und als Variable SUPABASE_KEY speichern."; exit 1; fi
+          # Nur warnen: Die App funktioniert auch ohne Konto, Updates sollen trotzdem live gehen.
+          if [ "$code" != "200" ]; then echo "::warning::Supabase lehnt SUPABASE_KEY ab (HTTP $code). Bitte den Publishable Key unter Project Settings → API Keys neu kopieren und als Variable SUPABASE_KEY speichern."; fi
       - name: Web-App bauen
         run: npm run build:web
         env:

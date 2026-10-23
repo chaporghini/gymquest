@@ -122,6 +122,8 @@ export interface Settings {
   loadSteps?: Partial<Record<LoadType, number>>;
   /** Abgelehnte Anpassungsvorschläge (IDs aus adaptations.ts) */
   dismissedSuggestions?: string[];
+  /** Zeitpunkt des letzten exportierten Backups (ISO) */
+  lastBackupAt?: string;
 }
 
 export interface PlannedExercise {

@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
   exerciseCard: { gap: spacing.md },
   exHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
   setRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.md, padding: spacing.sm, borderRadius: radius.md },
-  setDone: { backgroundColor: 'rgba(199,255,85,0.06)' },
+  setDone: { backgroundColor: colors.accentFaint },
   setInputs: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   check: { width: 52, height: 52, borderRadius: radius.md, borderWidth: 2, borderColor: colors.borderStrong, alignItems: 'center', justifyContent: 'center' },
   checkDone: { backgroundColor: colors.accent, borderColor: colors.accent },
@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
   feedbackCard: { gap: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   nav: { flexDirection: 'row', gap: spacing.md },
-  rest: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: 'rgba(199,255,85,0.35)' },
+  rest: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.accentBorder },
   restDone: { alignItems: 'center', padding: spacing.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
   round: { width: MIN_TOUCH, height: MIN_TOUCH, borderRadius: MIN_TOUCH / 2, backgroundColor: colors.cardSecondary, alignItems: 'center', justifyContent: 'center' },
 });

@@ -1,9 +1,8 @@
 import { router } from 'expo-router';
-import { CalendarPlus, ChevronRight, Cloud, CloudOff, History, Settings, Trash, Trophy } from 'lucide-react-native';
-import { useState } from 'react';
+import { CalendarPlus, ChevronRight, Cloud, CloudOff, Settings, Trophy } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText, Button, Card, ConfirmDialog, LevelBadge, Screen, SectionHeader } from '@/components';
+import { AppText, Card, LevelBadge, Screen, SectionHeader } from '@/components';
 import { formatDate } from '@/domain/dates';
 import { currentAge } from '@/domain/training';
 import { MUSCLE_LABELS, type Muscle } from '@/domain/muscles';
@@ -20,26 +19,8 @@ const BUILD_TIME = (() => {
 export default function Profile() {
   const app = useApp();
   const { profile, level, rank, cloud } = app;
-  const [dialog, setDialog] = useState<'reset' | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   if (!profile) return null;
-
-  const run = async (action: () => Promise<void>, success?: string) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-      setNotice(success ?? null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Aktion fehlgeschlagen.');
-    } finally {
-      setBusy(false);
-      setDialog(null);
-    }
-  };
 
   const rows: [string, string][] = [
     ['Erfahrung', experienceLabels[profile.experience]],
@@ -81,32 +62,17 @@ export default function Profile() {
       </Card>
 
       <Card padded={false}>
-        <LinkRow icon={Settings} title="Einstellungen" hint="Pausenzeit, Gewichtsstufen, Vibration" onPress={() => router.push('/settings')} />
-        <LinkRow icon={cloud.user ? Cloud : CloudOff} iconColor={cloud.user ? colors.accent : colors.warning} title="Konto & Daten" hint={cloud.user ? `Sync aktiv · ${cloud.user.email}` : 'Nur auf diesem Gerät · Backup'} onPress={() => router.push('/account')} divider />
+        <LinkRow icon={Settings} title="Einstellungen" hint="Farbe, Pausenzeit, Gewichtsstufen, Vibration" onPress={() => router.push('/settings')} />
+        <LinkRow icon={cloud.user ? Cloud : CloudOff} iconColor={cloud.user ? colors.accent : colors.warning} title="Konto & Daten" hint={cloud.user ? `Gesichert · ${cloud.user.email}` : 'Nicht gesichert · Konto oder Backup'} onPress={() => router.push('/account')} divider />
         <LinkRow icon={Trophy} title="Quests & Erfolge" hint={`Level ${level.level} · ${rank.name}`} onPress={() => router.push('/quests')} divider />
-        <LinkRow icon={History} title="Trainingshistorie" hint="Alle Trainings, Berichte und Bestleistungen" onPress={() => router.push('/stats')} divider />
         <LinkRow icon={CalendarPlus} title="Neuen Trainingsplan erstellen" hint="Schritt für Schritt aus deinen Angaben" onPress={() => router.push('/plan/create')} divider />
       </Card>
-      <Button label="Alle Daten löschen" icon={Trash} variant="ghost" size="sm" onPress={() => setDialog('reset')} />
-
-      {notice ? <AppText tone="accent" accessibilityLiveRegion="polite">{notice}</AppText> : null}
-      {error ? <AppText tone="error" accessibilityRole="alert">{error}</AppText> : null}
 
       <AppText variant="small" tone="secondary" align="center" style={styles.disclaimer}>
         GYMQUEST ersetzt keine medizinische Beratung. Bei Schmerzen Training abbrechen und ärztlich abklären lassen.
       </AppText>
       {BUILD_TIME ? <AppText variant="caption" tone="secondary" align="center">Version vom {BUILD_TIME}</AppText> : null}
 
-      <ConfirmDialog
-        visible={dialog === 'reset'}
-        title="Alle Daten löschen?"
-        message={`Profil, Plan, Trainingshistorie, XP und Erfolge werden unwiderruflich von diesem Gerät gelöscht.${cloud.user ? ' Du wirst abgemeldet, die Daten in der Cloud bleiben erhalten.' : ''}`}
-        confirmLabel="Endgültig löschen"
-        destructive
-        loading={busy}
-        onConfirm={() => run(app.resetAll)}
-        onCancel={() => setDialog(null)}
-      />
     </Screen>
   );
 }

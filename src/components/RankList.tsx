@@ -40,7 +40,7 @@ const styles = StyleSheet.create({
   card: { overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
   divider: { borderTopWidth: 1, borderTopColor: colors.border },
-  current: { backgroundColor: 'rgba(199,255,85,0.06)' },
+  current: { backgroundColor: colors.accentFaint },
   icon: { width: 36, height: 36, borderRadius: radius.md, backgroundColor: colors.cardSecondary, alignItems: 'center', justifyContent: 'center' },
   iconReached: { backgroundColor: colors.accent },
   flex: { flex: 1, gap: 2 },

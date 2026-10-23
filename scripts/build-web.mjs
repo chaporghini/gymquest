@@ -8,7 +8,7 @@
 //   EXPO_PUBLIC_SUPABASE_KEY   Supabase publishable/anon key
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFileSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 const root = new URL('..', import.meta.url).pathname;
@@ -68,10 +68,30 @@ writeFileSync(indexPath, html);
 
 // 2. Für GitHub Pages: unbekannte Pfade (z. B. /gymquest/training) liefern ebenfalls die App
 copyFileSync(indexPath, join(dist, '404.html'));
+// Feste Seiten zusätzlich als eigene index.html, damit ein Direktaufruf (z. B. /gymquest/account) ohne 404-Status lädt.
+const staticRoutes = [];
+(function walkRoutes(dir, prefix) {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) {
+      if (name.includes('[')) continue;
+      walkRoutes(full, /^\(.*\)$/.test(name) ? prefix : [...prefix, name]);
+    } else {
+      const m = name.match(/^([^_+[][^.]*)\.tsx$/);
+      if (!m) continue;
+      const parts = m[1] === 'index' ? prefix : [...prefix, m[1]];
+      if (parts.length) staticRoutes.push(parts.join('/'));
+    }
+  }
+})(join(root, 'src', 'app'), []);
+for (const route of staticRoutes) {
+  mkdirSync(join(dist, route), { recursive: true });
+  copyFileSync(indexPath, join(dist, route, 'index.html'));
+}
 writeFileSync(join(dist, '.nojekyll'), '');
 
 // 3. Service Worker mit Liste aller Dateien
-const skip = (p) => p === 'sw.js' || p === '404.html' || p === '.nojekyll' || p.startsWith('assets/node_modules/expo-sqlite/') || p === 'icons/icon-1024.png';
+const skip = (p) => p === 'sw.js' || staticRoutes.some((r) => p === `${r}/index.html`) || p === '404.html' || p === '.nojekyll' || p.startsWith('assets/node_modules/expo-sqlite/') || p === 'icons/icon-1024.png';
 const files = [];
 (function walk(dir) {
   for (const name of readdirSync(dir)) {

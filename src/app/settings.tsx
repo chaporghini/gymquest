@@ -1,11 +1,22 @@
 import { useState } from 'react';
-import { StyleSheet, Switch, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { AppText, Card, Chip, Screen } from '@/components';
 import { loadStepFor, LOAD_TYPE_LABELS } from '@/domain/training';
 import type { LoadType } from '@/domain/types';
 import { useApp } from '@/state/AppProvider';
-import { colors, spacing } from '@/theme/tokens';
+import { ACCENT_STORAGE_KEY, ACCENTS, colors, currentAccent, spacing, type AccentId } from '@/theme/tokens';
+
+function chooseAccent(id: AccentId) {
+  if (id === currentAccent) return;
+  try {
+    localStorage.setItem(ACCENT_STORAGE_KEY, id);
+  } catch {
+    return;
+  }
+  // Farben werden beim Start gelesen, daher einmal neu laden.
+  window.location.reload();
+}
 
 const REST_OPTIONS: (number | null)[] = [null, 60, 90, 120, 180];
 const STEP_OPTIONS: Record<Exclude<LoadType, 'bodyweight'>, number[]> = {
@@ -30,6 +41,25 @@ export default function Settings() {
 
   return (
     <Screen edges={['bottom']}>
+      {Platform.OS === 'web' ? (
+        <Card style={styles.accentCard}>
+          <AppText>Akzentfarbe</AppText>
+          <View style={styles.swatches} accessibilityRole="radiogroup">
+            {(Object.keys(ACCENTS) as AccentId[]).map((id) => (
+              <Pressable
+                key={id}
+                onPress={() => chooseAccent(id)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: id === currentAccent }}
+                accessibilityLabel={ACCENTS[id].label}
+                style={styles.swatchWrap}>
+                <View style={[styles.swatch, { backgroundColor: ACCENTS[id].hex }, id === currentAccent && styles.swatchOn]} />
+                <AppText variant="small" tone={id === currentAccent ? 'primary' : 'secondary'}>{ACCENTS[id].label}</AppText>
+              </Pressable>
+            ))}
+          </View>
+        </Card>
+      ) : null}
       <Card padded={false}>
         <View style={styles.row}>
           <View style={styles.flex}>
@@ -41,6 +71,7 @@ export default function Settings() {
             onValueChange={(v) => run(() => app.updateSettings({ hapticsEnabled: v }))}
             trackColor={{ true: colors.accent, false: colors.cardSecondary }}
             thumbColor={colors.text}
+            {...({ activeThumbColor: colors.text } as object)}
             accessibilityLabel="Haptisches Feedback"
           />
         </View>
@@ -95,4 +126,9 @@ const styles = StyleSheet.create({
   stepRow: { gap: spacing.xs, marginTop: spacing.xs },
   stepLabel: { fontWeight: '600' },
   chipsInline: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  accentCard: { gap: spacing.md },
+  swatches: { flexDirection: 'row', justifyContent: 'space-between' },
+  swatchWrap: { alignItems: 'center', gap: spacing.xs, minWidth: 56, minHeight: 44 },
+  swatch: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, borderColor: 'transparent' },
+  swatchOn: { borderColor: colors.text },
 });

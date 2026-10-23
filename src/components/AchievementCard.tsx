@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  unlocked: { borderColor: 'rgba(199,255,85,0.3)' },
+  unlocked: { borderColor: colors.accentBorder },
   icon: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.cardSecondary, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
   iconUnlocked: { backgroundColor: colors.accent },
   desc: { minHeight: 38 },

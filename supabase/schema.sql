@@ -51,3 +51,22 @@ drop trigger if exists gymquest_records_before_write on public.gymquest_records;
 create trigger gymquest_records_before_write
   before insert or update on public.gymquest_records
   for each row execute function public.gymquest_records_before_write();
+
+-- Konto vollständig löschen (DSGVO): löscht den Login der angemeldeten Person.
+-- Ihre Datensätze in gymquest_records verschwinden dabei automatisch (on delete cascade).
+create or replace function public.gymquest_delete_account()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+  delete from auth.users where id = auth.uid();
+end;
+$$;
+
+revoke execute on function public.gymquest_delete_account() from public, anon;
+grant execute on function public.gymquest_delete_account() to authenticated;

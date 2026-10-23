@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  optionSelected: { borderColor: colors.accent, backgroundColor: 'rgba(199,255,85,0.06)' },
+  optionSelected: { borderColor: colors.accent, backgroundColor: colors.accentFaint },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.textSecondary, alignItems: 'center', justifyContent: 'center' },
   radioSelected: { borderColor: colors.accent },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accent },

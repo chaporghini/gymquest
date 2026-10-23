@@ -32,6 +32,13 @@ export interface CloudSync {
   /** Schickt eine E-Mail mit Link; der Link meldet im Browser an, danach kann ein neues Passwort gesetzt werden. */
   sendPasswordReset: (email: string) => Promise<void>;
   changePassword: (password: string) => Promise<void>;
+  /** Schickt eine Bestätigung an die neue Adresse; erst danach gilt sie. */
+  changeEmail: (email: string) => Promise<void>;
+  /** true, wenn die App über einen „Passwort vergessen“-Link geöffnet wurde. */
+  recovery: boolean;
+  clearRecovery: () => void;
+  /** Löscht Login und alle Cloud-Daten endgültig. Die Daten auf diesem Gerät bleiben. */
+  deleteAccount: () => Promise<void>;
   syncNow: () => Promise<void>;
   deleteCloudData: () => Promise<void>;
 }
@@ -64,6 +71,7 @@ export function useCloudSync(repo: TrackingRepository, onLocalChanged: () => Pro
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
   const [googleAvailable, setGoogleAvailable] = useState(false);
+  const [recovery, setRecovery] = useState(false);
   const userRef = useRef<CloudUser | null>(null);
   const running = useRef<Promise<void> | null>(null);
   const again = useRef(false);
@@ -85,7 +93,10 @@ export function useCloudSync(repo: TrackingRepository, onLocalChanged: () => Pro
       .then(({ data }) => apply(data.session?.user))
       .catch(() => apply(null))
       .finally(() => setReady(true));
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => apply(session?.user));
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
+      apply(session?.user);
+    });
     return () => data.subscription.unsubscribe();
   }, [supabase]);
 
@@ -240,6 +251,30 @@ export function useCloudSync(repo: TrackingRepository, onLocalChanged: () => Pro
     [supabase],
   );
 
+  const changeEmail = useCallback(
+    async (email: string) => {
+      if (!supabase) return;
+      const { error } = await supabase.auth.updateUser({ email: email.trim() }, { emailRedirectTo: redirectUrl() });
+      if (error) throw new Error(translateAuthError(error.message));
+    },
+    [supabase],
+  );
+
+  const clearRecovery = useCallback(() => setRecovery(false), []);
+
+  const deleteAccount = useCallback(async () => {
+    if (!supabase || !userRef.current) return;
+    await running.current?.catch(() => {});
+    const { error } = await supabase.rpc('gymquest_delete_account');
+    if (error) {
+      if (error.code === 'PGRST202' || /could not find the function/i.test(error.message)) {
+        throw new Error('Das Löschen von Konten ist auf dem Server noch nicht eingerichtet. Bitte später erneut versuchen.');
+      }
+      throw new Error(translateAuthError(error.message));
+    }
+    await signOut();
+  }, [supabase, signOut]);
+
   const deleteCloudData = useCallback(async () => {
     const current = userRef.current;
     if (!supabase || !current) return;
@@ -248,5 +283,5 @@ export function useCloudSync(repo: TrackingRepository, onLocalChanged: () => Pro
     await signOut();
   }, [supabase, signOut]);
 
-  return { configured: !!supabase, ready, user, phase, message, lastSyncedAt, signIn, signUp, googleAvailable, signInWithGoogle, signOut, sendPasswordReset, changePassword, syncNow, deleteCloudData };
+  return { configured: !!supabase, ready, user, phase, message, lastSyncedAt, signIn, signUp, googleAvailable, signInWithGoogle, signOut, sendPasswordReset, changePassword, changeEmail, recovery, clearRecovery, deleteAccount, syncNow, deleteCloudData };
 }
