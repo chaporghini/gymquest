@@ -245,6 +245,6 @@ describe('Datensicherung', () => {
 
   it('lehnt fremde Dateien verständlich ab', () => {
     expect(() => parseBackup('hallo')).toThrow('kein JSON');
-    expect(() => parseBackup('{"foo":1}')).toThrow('keine GYMQUEST-Sicherung');
+    expect(() => parseBackup('{"foo":1}')).toThrow('keine GymQuest-Sicherung');
   });
 });

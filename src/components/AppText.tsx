@@ -1,4 +1,4 @@
-import { Text, type TextProps } from 'react-native';
+import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
 
 import { colors, typography } from '@/theme/tokens';
 
@@ -20,6 +20,20 @@ export interface AppTextProps extends TextProps {
   align?: 'left' | 'center' | 'right';
 }
 
+// Nativ hat jede Inter-Stärke eine eigene Schriftdatei; im Web reicht fontWeight.
+const NATIVE_FAMILY: Record<string, string> = {
+  '400': 'Inter_400Regular',
+  '500': 'Inter_500Medium',
+  '600': 'Inter_600SemiBold',
+  '700': 'Inter_700Bold',
+  '800': 'Inter_800ExtraBold',
+  bold: 'Inter_700Bold',
+  normal: 'Inter_400Regular',
+};
+
 export function AppText({ variant = 'body', tone = 'primary', align, style, ...rest }: AppTextProps) {
-  return <Text {...rest} style={[typography[variant], { color: toneColor[tone], textAlign: align }, style]} />;
+  const base = [typography[variant], { color: toneColor[tone], textAlign: align }, style];
+  if (Platform.OS === 'web') return <Text {...rest} style={base} />;
+  const weight = String(StyleSheet.flatten(base)?.fontWeight ?? '400');
+  return <Text {...rest} style={[...base, { fontFamily: NATIVE_FAMILY[weight] ?? 'Inter_400Regular', fontWeight: 'normal' }]} />;
 }

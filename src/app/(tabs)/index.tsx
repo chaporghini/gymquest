@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { BookOpen, CalendarCheck, ChevronRight, CloudOff, Dumbbell, Flame, Info, Play, Plus, Sparkles, Star, Target, Trophy, type LucideIcon } from 'lucide-react-native';
+import { BookOpen, CalendarCheck, ChevronRight, CloudOff, Dumbbell, Info, PersonStanding, Play, Plus, Sparkles, Star, Target, Trophy, type LucideIcon } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
@@ -17,6 +17,7 @@ import { getNextSession } from '@/domain/workout';
 import { BodyMap } from '@/features/BodyMap';
 import { ChapterCard } from '@/features/ChapterCard';
 import { useApp } from '@/state/AppProvider';
+import { useToday } from '@/state/useToday';
 import { colors, DESKTOP_BREAKPOINT, radius, spacing } from '@/theme/tokens';
 
 export default function Home() {
@@ -30,7 +31,7 @@ export default function Home() {
   useEffect(() => {
     if (recovery) router.push('/account');
   }, [recovery]);
-  const now = useMemo(() => new Date(), [sessions, plan]); // eslint-disable-line react-hooks/exhaustive-deps
+  const now = useToday();
 
   const next = useMemo(() => getNextSession(plan, sessions, now), [plan, sessions, now]);
   const streak = useMemo(() => weeklyStreak(sessions, plan, now), [sessions, plan, now]);
@@ -97,15 +98,11 @@ export default function Home() {
           <AppText variant="bodyStrong">Level {level.level}</AppText>
           <View style={styles.sep} />
           <AppText variant="bodyStrong">Rang: {rank.name}</AppText>
-          <View style={styles.flex} />
-          <AppText variant="bodyStrong"><AppText variant="bodyStrong" tone="accent">{level.totalXp}</AppText> XP</AppText>
         </View>
         <ProgressBar value={level.progress} height={10} accessibilityLabel={`Noch ${level.xpRemaining} XP bis Level ${level.level + 1}`} />
-        <View style={styles.heroStats}>
-          <AppText variant="small" tone="secondary">{level.xpIntoLevel} / {level.xpForLevel} XP</AppText>
-          <View style={styles.flex} />
-          {!level.isMaxLevel ? <AppText variant="small" tone="secondary">noch {level.xpRemaining} XP bis Level {level.level + 1}</AppText> : null}
-        </View>
+        <AppText variant="small" tone="secondary">
+          {level.isMaxLevel ? 'Maximales Level erreicht' : <>Noch <AppText variant="small" tone="accent" style={styles.bold}>{level.xpRemaining} XP</AppText> bis Level {level.level + 1}</>}
+        </AppText>
       </Pressable>
 
       {activeWorkout ? (
@@ -140,19 +137,19 @@ export default function Home() {
 
   const questSection = (
     <>
-      <SectionHeader title="Wochenquests" actionLabel="Alle Quests" onAction={() => router.push('/quests')} />
+      <SectionHeader title="Wochenquests" actionLabel={quests.length > 3 ? `Alle ${quests.length} Quests` : 'Alle Quests'} onAction={() => router.push('/quests')} />
       {quests.length > 0 ? (
         desktop ? (
           <View style={styles.tiles}>
-            {quests.slice(0, 3).map((q, i) => (
-              <QuestTile key={q.id} quest={q} icon={QUEST_ICONS[i % QUEST_ICONS.length]} onPress={() => router.push({ pathname: '/quest/[id]', params: { id: q.id } })} />
+            {quests.slice(0, 3).map((q) => (
+              <QuestTile key={q.id} quest={q} icon={QUEST_ICONS[q.id] ?? Target} onPress={() => router.push({ pathname: '/quest/[id]', params: { id: q.id } })} />
             ))}
           </View>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bleed} contentContainerStyle={styles.questScroll}>
-            {quests.slice(0, 3).map((q, i) => (
+            {quests.slice(0, 3).map((q) => (
               <View key={q.id} style={styles.questSlot}>
-                <QuestTile quest={q} icon={QUEST_ICONS[i % QUEST_ICONS.length]} onPress={() => router.push({ pathname: '/quest/[id]', params: { id: q.id } })} />
+                <QuestTile quest={q} icon={QUEST_ICONS[q.id] ?? Target} onPress={() => router.push({ pathname: '/quest/[id]', params: { id: q.id } })} />
               </View>
             ))}
           </ScrollView>
@@ -231,11 +228,11 @@ export default function Home() {
         <AppText variant="title" accessibilityRole="header">{greeting.title}</AppText>
         <AppText tone="secondary">{greeting.subtitle}</AppText>
       </View>
-      {hints}
       {desktop ? (
         <View style={styles.columns}>
           <View style={styles.mainCol}>
             {hero}
+            {hints}
             {questSection}
             {bodyMap}
           </View>
@@ -247,6 +244,7 @@ export default function Home() {
       ) : (
         <>
           {hero}
+          {hints}
           {questSection}
           {statTiles}
           {bodyMap}
@@ -257,7 +255,11 @@ export default function Home() {
   );
 }
 
-const QUEST_ICONS: LucideIcon[] = [Target, Dumbbell, Flame];
+const QUEST_ICONS: Record<string, LucideIcon> = {
+  weekly_workouts: CalendarCheck,
+  weekly_full_workout: Dumbbell,
+  weekly_mobility: PersonStanding,
+};
 
 function QuestTile({ quest, icon: Icon, onPress }: { quest: QuestStatus; icon: LucideIcon; onPress: () => void }) {
   return (

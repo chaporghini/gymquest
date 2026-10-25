@@ -7,6 +7,7 @@ import { AppText, Button, Card, SectionHeader } from '@/components';
 import { EXERCISES } from '@/data/exercises';
 import { computeSuggestions, type Suggestion } from '@/domain/adaptations';
 import { useApp } from '@/state/AppProvider';
+import { useToday } from '@/state/useToday';
 import { colors, spacing } from '@/theme/tokens';
 
 /** Datenbasierte Anpassungsvorschläge mit Begründung. Nichts wird ohne Zustimmung geändert. */
@@ -14,9 +15,10 @@ export function SuggestionsList() {
   const { plan, profile, sessions, settings, acceptSuggestion, dismissSuggestion } = useApp();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const now = useToday();
   const list = useMemo(
-    () => computeSuggestions({ plan, profile, sessions, library: EXERCISES, now: new Date(), dismissed: settings.dismissedSuggestions }).slice(0, 3),
-    [plan, profile, sessions, settings.dismissedSuggestions],
+    () => computeSuggestions({ plan, profile, sessions, library: EXERCISES, now, dismissed: settings.dismissedSuggestions }).slice(0, 3),
+    [plan, profile, sessions, settings.dismissedSuggestions, now],
   );
   if (list.length === 0) return null;
 

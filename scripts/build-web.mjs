@@ -37,13 +37,12 @@ const head = `
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="GYMQUEST" />
+    <meta name="apple-mobile-web-app-title" content="GymQuest" />
     <link rel="manifest" href="${base}manifest.webmanifest" />
     <link rel="apple-touch-icon" href="${base}icons/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="48x48" href="${base}icons/favicon-48.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+    <link rel="preload" href="${base}fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <style>@font-face { font-family: 'Inter'; font-style: normal; font-display: swap; font-weight: 100 900; src: url('${base}fonts/inter-latin.woff2') format('woff2-variations'), url('${base}fonts/inter-latin.woff2') format('woff2'); }</style>
     <style>html, body { background-color: #090B0A; color-scheme: dark; }</style>
     <script>
       if ('serviceWorker' in navigator) {
@@ -68,6 +67,10 @@ const head = `
   `;
 html = html.replace('</head>', `${head}</head>`);
 writeFileSync(indexPath, html);
+
+// Schrift selbst ausliefern (kein Google-Fonts-Abruf, funktioniert offline)
+mkdirSync(join(dist, 'fonts'), { recursive: true });
+copyFileSync(join(root, 'node_modules', '@fontsource-variable', 'inter', 'files', 'inter-latin-wght-normal.woff2'), join(dist, 'fonts', 'inter-latin.woff2'));
 
 // 2. Für GitHub Pages: unbekannte Pfade (z. B. /gymquest/training) liefern ebenfalls die App
 copyFileSync(indexPath, join(dist, '404.html'));

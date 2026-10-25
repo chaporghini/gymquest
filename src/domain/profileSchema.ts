@@ -31,7 +31,7 @@ export const profileFormSchema = z.object({
   ageYears: z
     .number()
     .int('Bitte ganze Jahre angeben.')
-    .min(12, 'GYMQUEST ist ab 12 Jahren gedacht.')
+    .min(12, 'GymQuest ist ab 12 Jahren gedacht.')
     .max(100, 'Bitte einen realistischen Wert eingeben.')
     .nullable()
     .optional(),

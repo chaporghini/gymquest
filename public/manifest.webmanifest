@@ -1,6 +1,6 @@
 {
-  "name": "GYMQUEST",
-  "short_name": "GYMQUEST",
+  "name": "GymQuest",
+  "short_name": "GymQuest",
   "description": "Fitness-RPG: Trainingsplan, XP, Level, Quests und Ränge.",
   "lang": "de",
   "start_url": "./",

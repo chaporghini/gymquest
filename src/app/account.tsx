@@ -514,7 +514,7 @@ function SignInForm({ cloud }: { cloud: CloudSync }) {
     if (!email.success) return setError('Bitte trage oben zuerst deine E-Mail-Adresse ein.');
     try {
       await cloud.sendPasswordReset(email.data);
-      setNotice('Wir haben dir einen Link geschickt. Er öffnet GYMQUEST und fragt direkt nach deinem neuen Passwort.');
+      setNotice('Wir haben dir einen Link geschickt. Er öffnet GymQuest und fragt direkt nach deinem neuen Passwort.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'E-Mail konnte nicht gesendet werden.');
     }

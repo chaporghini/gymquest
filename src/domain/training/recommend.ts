@@ -136,7 +136,7 @@ export function recommendExerciseLoad(
       const start = reduceLoad(known.weightKg, step, 0.9);
       return result('find', `Einstieg mit etwa ${fmt(start)} kg`, start, [
         `Du hast ${fmt(known.weightKg)} kg × ${known.reps} als bekannte Leistung angegeben.`,
-        `Zum Einstieg in GYMQUEST schlagen wir etwas weniger vor (${fmt(start)} kg), damit du ${repText} sauber mit ${rirText} schaffst. Passe das Gewicht an, wenn es sich deutlich zu leicht oder zu schwer anfühlt.`,
+        `Zum Einstieg in GymQuest schlagen wir etwas weniger vor (${fmt(start)} kg), damit du ${repText} sauber mit ${rirText} schaffst. Passe das Gewicht an, wenn es sich deutlich zu leicht oder zu schwer anfühlt.`,
       ], []);
     }
     if (usesWeight) {

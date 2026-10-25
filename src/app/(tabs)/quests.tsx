@@ -7,12 +7,13 @@ import { addDays, startOfWeek } from '@/domain/dates';
 import { computeAchievements, computeChapters, computeWeeklyQuests } from '@/domain/progression';
 import { ChapterCard } from '@/features/ChapterCard';
 import { useApp } from '@/state/AppProvider';
+import { useToday } from '@/state/useToday';
 import { DESKTOP_BREAKPOINT, spacing } from '@/theme/tokens';
 
 export default function Quests() {
   const { sessions, xpEvents, plan, level, profile } = useApp();
-  const now = new Date();
-  const input = useMemo(() => ({ sessions, xpEvents, plan, now: new Date(), experience: profile?.experience, startedAt: profile?.createdAt }), [sessions, xpEvents, plan, profile]);
+  const now = useToday();
+  const input = useMemo(() => ({ sessions, xpEvents, plan, now, experience: profile?.experience, startedAt: profile?.createdAt }), [sessions, xpEvents, plan, profile, now]);
   const quests = useMemo(() => computeWeeklyQuests(input), [input]);
   const chapters = useMemo(() => computeChapters(input), [input]);
   const achievements = useMemo(() => computeAchievements(input), [input]);
@@ -62,7 +63,7 @@ export default function Quests() {
   );
 
   return (
-    <Screen wide={desktop}>
+    <Screen wide>
       {desktop ? (
         <View style={styles.columns}>
           {questsCol}

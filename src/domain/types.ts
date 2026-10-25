@@ -1,4 +1,4 @@
-// Kern-Datentypen von GYMQUEST. Diese Datei ist frei von UI- und Datenbankcode.
+// Kern-Datentypen von GymQuest. Diese Datei ist frei von UI- und Datenbankcode.
 
 export type Experience = 'beginner' | 'intermediate' | 'advanced';
 /** mobility = Technik und sichere Ausführung lernen (historischer Schlüssel). */
@@ -122,6 +122,10 @@ export interface Settings {
   loadSteps?: Partial<Record<LoadType, number>>;
   /** Abgelehnte Anpassungsvorschläge (IDs aus adaptations.ts) */
   dismissedSuggestions?: string[];
+  /** Ton bei Pausenende (Standard: an) */
+  restSound?: boolean;
+  /** Benachrichtigung bei Pausenende, wenn die App im Hintergrund ist */
+  restNotification?: boolean;
   /** Zeitpunkt des letzten exportierten Backups (ISO) */
   lastBackupAt?: string;
 }

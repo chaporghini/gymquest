@@ -53,3 +53,14 @@ self.addEventListener('fetch', (event) => {
     ),
   );
 });
+
+// Tippen auf die Benachrichtigung „Pause vorbei“ öffnet die App wieder.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const open = list.find((c) => c.url.startsWith(SCOPE.href));
+      return open ? open.focus() : self.clients.openWindow(new URL('workout/active', SCOPE).href);
+    }),
+  );
+});

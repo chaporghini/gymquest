@@ -15,6 +15,7 @@ import { formatRir, loadStepFor, loadTypeOf, recommendExerciseLoad } from '@/dom
 import type { ActiveWorkout, Effort, ExerciseFeedback, SetLog } from '@/domain/types';
 import { activeDurationSec, completedSetCount, lastSetsByExercise, plannedSetCount, replaceActiveExercise, togglePause, toggleSkipExercise } from '@/domain/workout';
 import { RecommendationCard } from '@/features/RecommendationCard';
+import { playRestEnd, primeRestSound } from '@/features/restAlert';
 import { useApp } from '@/state/AppProvider';
 import { colors, MIN_TOUCH, radius, spacing } from '@/theme/tokens';
 
@@ -70,14 +71,16 @@ export default function ActiveWorkoutScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRaw?.exerciseId, currentRaw?.targetRepsMin, currentRaw?.targetRepsMax, profile, sessions, settings, startedAt]);
 
+  const currentName = currentRaw ? getExercise(currentRaw.exerciseId)?.name : undefined;
   const restRemaining = workout?.restEndsAt ? Math.ceil((new Date(workout.restEndsAt).getTime() - now) / 1000) : 0;
 
   useEffect(() => {
     if (workout?.restEndsAt && restRemaining <= 0 && restNotified.current !== workout.restEndsAt) {
       restNotified.current = workout.restEndsAt;
       haptic(settings.hapticsEnabled, 'success');
+      playRestEnd({ sound: settings.restSound !== false, notify: !!settings.restNotification, exerciseName: currentName });
     }
-  }, [restRemaining, workout?.restEndsAt, settings.hapticsEnabled]);
+  }, [restRemaining, workout?.restEndsAt, settings.hapticsEnabled, settings.restSound, settings.restNotification, currentName]);
 
   if (!workout) {
     return (
@@ -111,6 +114,7 @@ export default function ActiveWorkoutScreen() {
   const isTime = exercise?.measurement === 'time';
   const weightStep = exercise ? loadStepFor(loadTypeOf(exercise), settings) : 2.5;
   const feedback = current.feedback ?? {};
+  const exerciseDone = current.sets.every((st) => st.completed);
 
   const update = (fn: (w: ActiveWorkout) => ActiveWorkout) => app.updateActiveWorkout(fn);
 
@@ -126,6 +130,7 @@ export default function ActiveWorkoutScreen() {
     const set = current.sets[setIndex];
     const completing = !set.completed;
     haptic(settings.hapticsEnabled, 'light');
+    primeRestSound();
     update((w) => {
       const exercises = w.exercises.map((e, i) =>
         i !== exIndex ? e : { ...e, sets: e.sets.map((s, j) => (j === setIndex ? { ...s, completed: completing } : s)) },
@@ -135,18 +140,20 @@ export default function ActiveWorkoutScreen() {
       return {
         ...w,
         exercises,
-        // Nach dem letzten Satz einer Übung automatisch zur nächsten wechseln.
-        currentExerciseIndex: completing && allDone && !isLastExercise ? exIndex + 1 : w.currentExerciseIndex,
+        // Nach dem letzten Satz zur nächsten Übung wechseln, aber erst nach der Frage zur Anstrengung.
+        currentExerciseIndex: completing && allDone && !isLastExercise && exercises[exIndex].feedback?.effort ? exIndex + 1 : w.currentExerciseIndex,
         restEndsAt: completing && !(allDone && isLastExercise) ? new Date(Date.now() + restSec * 1000).toISOString() : completing ? null : w.restEndsAt,
       };
     });
   };
 
   const setFeedback = (patch: Partial<Omit<ExerciseFeedback, 'exerciseId'>>) =>
-    update((w) => ({
-      ...w,
-      exercises: w.exercises.map((e, i) => (i !== exIndex ? e : { ...e, feedback: { ...e.feedback, ...patch } })),
-    }));
+    update((w) => {
+      const exercises = w.exercises.map((e, i) => (i !== exIndex ? e : { ...e, feedback: { ...e.feedback, ...patch } }));
+      // Übung fertig und Anstrengung gewählt: weiter zur nächsten Übung.
+      const advance = !!patch.effort && exercises[exIndex].sets.every((st) => st.completed) && exIndex < w.exercises.length - 1;
+      return { ...w, exercises, currentExerciseIndex: advance ? exIndex + 1 : w.currentExerciseIndex };
+    });
 
   const addSet = () =>
     update((w) => ({
@@ -396,8 +403,8 @@ export default function ActiveWorkoutScreen() {
         </View>
 
         {current.sets.some((st) => st.completed) ? (
-          <View style={styles.feedbackCard}>
-            <AppText variant="bodyStrong">Wie anstrengend war diese Übung?</AppText>
+          <View style={[styles.feedbackCard, exerciseDone && !feedback.effort && styles.feedbackAsk]}>
+            <AppText variant="bodyStrong">Wie anstrengend war {exerciseDone ? (exercise?.name ?? 'diese Übung') : 'diese Übung'}?</AppText>
             <View style={styles.chips} accessibilityRole="radiogroup">
               {EFFORT_OPTIONS.map((o) => (
                 <Chip key={o.value} role="radio" label={o.label} selected={feedback.effort === o.value} onPress={() => setFeedback({ effort: feedback.effort === o.value ? null : o.value })} />
@@ -412,6 +419,9 @@ export default function ActiveWorkoutScreen() {
                 ? 'Brich die Übung ab, wenn es schmerzt. Beim nächsten Mal schlagen wir keine Steigerung vor. Halten Beschwerden an, lass dich ärztlich oder physiotherapeutisch beraten.'
                 : `Hilft bei der Empfehlung fürs nächste Mal. Passend heißt: noch etwa ${formatRir(recommendation?.targetRepsInReserve ?? [1, 3])} saubere Wiederholungen wären möglich gewesen.`}
             </AppText>
+            {exerciseDone && exIndex < workout.exercises.length - 1 ? (
+              <Button label="Weiter zur nächsten Übung" icon={ChevronRight} variant={feedback.effort ? 'primary' : 'secondary'} size="sm" onPress={() => goTo(exIndex + 1)} />
+            ) : null}
           </View>
         ) : null}
       </Card>
@@ -485,6 +495,7 @@ const styles = StyleSheet.create({
   checkDone: { backgroundColor: colors.accent, borderColor: colors.accent },
   setActions: { flexDirection: 'row', justifyContent: 'center', gap: spacing.md },
   feedbackCard: { gap: spacing.sm },
+  feedbackAsk: { padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.accentBorder, backgroundColor: colors.accentFaint },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   nav: { flexDirection: 'row', gap: spacing.md },
   rest: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.accentBorder },

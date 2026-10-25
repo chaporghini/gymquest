@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { CalendarPlus, ChevronRight, Cloud, CloudOff, Settings, Trophy } from 'lucide-react-native';
+import { CalendarPlus, ChevronRight, Cloud, CloudOff, Settings } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Card, LevelBadge, Screen, SectionHeader } from '@/components';
@@ -38,7 +38,7 @@ export default function Profile() {
   if (profile.bodyWeightKg) rows.push(['Körpergewicht', `${profile.bodyWeightKg.toLocaleString('de-DE')} kg`]);
 
   return (
-    <Screen>
+    <Screen wide>
       <AppText variant="title" accessibilityRole="header">Profil</AppText>
 
       <Card style={styles.hero}>
@@ -64,12 +64,11 @@ export default function Profile() {
       <Card padded={false}>
         <LinkRow icon={Settings} title="Einstellungen" hint="Farbe, Pausenzeit, Gewichtsstufen, Vibration" onPress={() => router.push('/settings')} />
         <LinkRow icon={cloud.user ? Cloud : CloudOff} iconColor={cloud.user ? colors.accent : colors.warning} title="Konto & Daten" hint={cloud.user ? `Gesichert · ${cloud.user.email}` : 'Nicht gesichert · Konto oder Backup'} onPress={() => router.push('/account')} divider />
-        <LinkRow icon={Trophy} title="Quests & Erfolge" hint={`Level ${level.level} · ${rank.name}`} onPress={() => router.push('/quests')} divider />
         <LinkRow icon={CalendarPlus} title="Neuen Trainingsplan erstellen" hint="Schritt für Schritt aus deinen Angaben" onPress={() => router.push('/plan/create')} divider />
       </Card>
 
       <AppText variant="small" tone="secondary" align="center" style={styles.disclaimer}>
-        GYMQUEST ersetzt keine medizinische Beratung. Bei Schmerzen Training abbrechen und ärztlich abklären lassen.
+        GymQuest ersetzt keine medizinische Beratung. Bei Schmerzen Training abbrechen und ärztlich abklären lassen.
       </AppText>
       {BUILD_TIME ? <AppText variant="caption" tone="secondary" align="center">Version vom {BUILD_TIME}</AppText> : null}
 

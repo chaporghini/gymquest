@@ -25,10 +25,10 @@ export function parseBackup(text: string): Backup {
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new Error('Die Datei ist keine gültige GYMQUEST-Sicherung (kein JSON).');
+    throw new Error('Die Datei ist keine gültige GymQuest-Sicherung (kein JSON).');
   }
   const b = parsed as Partial<Backup> | null;
-  if (!b || b.app !== 'gymquest' || !Array.isArray(b.records)) throw new Error('Die Datei ist keine GYMQUEST-Sicherung.');
+  if (!b || b.app !== 'gymquest' || !Array.isArray(b.records)) throw new Error('Die Datei ist keine GymQuest-Sicherung.');
   if (b.version !== 1) throw new Error('Diese Sicherung stammt aus einer neueren App-Version.');
   return b as Backup;
 }

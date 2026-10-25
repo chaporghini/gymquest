@@ -3,6 +3,7 @@ import { Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { AppText, Card, Chip, Screen } from '@/components';
 import { loadStepFor, LOAD_TYPE_LABELS } from '@/domain/training';
+import { canNotify, requestNotifications } from '@/features/restAlert';
 import type { LoadType } from '@/domain/types';
 import { useApp } from '@/state/AppProvider';
 import { ACCENT_STORAGE_KEY, ACCENTS, colors, currentAccent, spacing, type AccentId } from '@/theme/tokens';
@@ -75,6 +76,43 @@ export default function Settings() {
             accessibilityLabel="Haptisches Feedback"
           />
         </View>
+        {Platform.OS === 'web' ? (
+          <View style={[styles.row, styles.divider]}>
+            <View style={styles.flex}>
+              <AppText>Ton bei Pausenende</AppText>
+              <AppText variant="small" tone="secondary">Kurzer Signalton, wenn die Pause vorbei ist</AppText>
+            </View>
+            <Switch
+              value={settings.restSound !== false}
+              onValueChange={(v) => run(() => app.updateSettings({ restSound: v }))}
+              trackColor={{ true: colors.accent, false: colors.cardSecondary }}
+              thumbColor={colors.text}
+              {...({ activeThumbColor: colors.text } as object)}
+              accessibilityLabel="Ton bei Pausenende"
+            />
+          </View>
+        ) : null}
+        {canNotify() ? (
+          <View style={[styles.row, styles.divider]}>
+            <View style={styles.flex}>
+              <AppText>Benachrichtigung bei Pausenende</AppText>
+              <AppText variant="small" tone="secondary">Wenn du währenddessen in einer anderen App bist</AppText>
+            </View>
+            <Switch
+              value={!!settings.restNotification}
+              onValueChange={(v) =>
+                run(async () => {
+                  if (v && !(await requestNotifications())) throw new Error('Benachrichtigungen sind blockiert. Erlaube sie in den Einstellungen deines Geräts bzw. Browsers.');
+                  await app.updateSettings({ restNotification: v });
+                })
+              }
+              trackColor={{ true: colors.accent, false: colors.cardSecondary }}
+              thumbColor={colors.text}
+              {...({ activeThumbColor: colors.text } as object)}
+              accessibilityLabel="Benachrichtigung bei Pausenende"
+            />
+          </View>
+        ) : null}
         <View style={[styles.rowStack, styles.divider]}>
           <AppText>Pausenzeit</AppText>
           <AppText variant="small" tone="secondary">„Plan“ nutzt die empfohlene Pause jeder Übung.</AppText>

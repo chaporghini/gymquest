@@ -92,7 +92,7 @@ export default function ExerciseDetail() {
         <Card style={styles.gap}>
           <AppText variant="heading">Bekannte Leistung (optional)</AppText>
           <AppText variant="small" tone="secondary">
-            Weißt du, mit welchem Gewicht du diese Übung zuletzt sauber geschafft hast? Dann starten wir etwas darunter. Sobald du die Übung in GYMQUEST trainierst, zählt nur noch dein Protokoll.
+            Weißt du, mit welchem Gewicht du diese Übung zuletzt sauber geschafft hast? Dann starten wir etwas darunter. Sobald du die Übung in GymQuest trainierst, zählt nur noch dein Protokoll.
           </AppText>
           <View style={styles.row}>
             <View style={styles.flex}><Stepper label="Gewicht" unit="kg" compact value={knownWeight} onChange={(v) => { setKnownWeight(v); setSaved(false); }} step={recommendation?.loadStepKg ?? 2.5} max={500} decimals /></View>

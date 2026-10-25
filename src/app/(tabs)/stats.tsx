@@ -14,6 +14,7 @@ import { LEVEL_COLORS } from '@/features/BodyMap';
 import { Bars, ChartCard, Line } from '@/features/ChartCard';
 import { MuscleMapCard } from '@/features/MuscleMapCard';
 import { useApp } from '@/state/AppProvider';
+import { useToday } from '@/state/useToday';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 type WeekMetric = 'workouts' | 'sets' | 'minutes';
@@ -40,7 +41,7 @@ const XP_WEEKS = 12;
 
 export default function Stats() {
   const { sessions, plan, xpEvents, profile, level, rank } = useApp();
-  const now = useMemo(() => new Date(), [sessions, xpEvents, profile]); // eslint-disable-line react-hooks/exhaustive-deps
+  const now = useToday();
   const [chart, setChart] = useState<ChartKind>('weeks');
   const [weekMetric, setWeekMetric] = useState<WeekMetric>('workouts');
   const [monthMetric, setMonthMetric] = useState<MonthMetric>('minutes');
@@ -82,7 +83,7 @@ export default function Stats() {
   const xpLevelEnd = xp[xp.length - 1].level;
 
   return (
-    <Screen>
+    <Screen wide>
       <AppText variant="title" accessibilityRole="header">Fortschritt</AppText>
 
       <View style={styles.grid}>

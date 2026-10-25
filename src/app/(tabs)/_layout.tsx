@@ -44,8 +44,7 @@ export default function TabLayout() {
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarAccessibilityLabel: 'Home', tabBarIcon: ({ color, size }) => <House color={color} size={size} /> }} />
       <Tabs.Screen name="training" options={{ title: 'Training', tabBarAccessibilityLabel: 'Training', tabBarIcon: ({ color, size }) => <Dumbbell color={color} size={size} /> }} />
       <Tabs.Screen name="stats" options={{ title: 'Fortschritt', tabBarAccessibilityLabel: 'Fortschritt', tabBarIcon: ({ color, size }) => <ChartColumn color={color} size={size} /> }} />
-      {/* Auf dem Handy über Home und Profil erreichbar, auf Laptop/PC in der Seitenleiste. */}
-      <Tabs.Screen name="quests" options={desktop ? { title: 'Quests' } : { href: null, title: 'Quests' }} />
+      <Tabs.Screen name="quests" options={{ title: 'Quests', tabBarAccessibilityLabel: 'Quests und Erfolge', tabBarIcon: ({ color, size }) => <Trophy color={color} size={size} /> }} />
       <Tabs.Screen name="profile" options={{ title: 'Profil', tabBarAccessibilityLabel: 'Profil', tabBarIcon: ({ color, size }) => <User color={color} size={size} /> }} />
     </Tabs>
   );

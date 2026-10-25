@@ -19,7 +19,7 @@ interface Step {
 }
 
 const STEPS: Step[] = [
-  { title: 'Willkommen bei GYMQUEST', subtitle: 'Sammle XP durch regelmäßiges, sicheres Training und steige im Rang auf.', fields: ['displayName'] },
+  { title: 'Willkommen bei GymQuest', subtitle: 'Sammle XP durch regelmäßiges, sicheres Training und steige im Rang auf.', fields: ['displayName'] },
   { title: 'Deine Erfahrung', subtitle: 'Damit Übungen und Umfang zu dir passen.', fields: ['experience'] },
   { title: 'Dein Ziel', subtitle: 'Bestimmt Wiederholungen, Pausen und Übungsauswahl.', fields: ['goal'] },
   { title: 'Dein Wochenrhythmus', subtitle: 'Wir planen Erholungstage automatisch ein.', fields: ['daysPerWeek', 'sessionMinutes'] },

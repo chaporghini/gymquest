@@ -34,7 +34,7 @@ export const colors = {
   accentHalf: muted(accentHex, 0.45),
   onAccent: '#090B0A',
   text: '#F5F7F2',
-  textSecondary: '#929A9D',
+  textSecondary: '#909A91',
   warning: '#FFB547',
   warningMuted: 'rgba(255, 181, 71, 0.14)',
   error: '#FF6B6B',
@@ -48,8 +48,8 @@ export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as cons
 
 export const radius = { sm: 8, md: 12, lg: 16, xl: 22, pill: 999 } as const;
 
-// Inter (im Web über Google Fonts geladen), sonst Systemschrift.
-const fontFamily = Platform.select({ ios: 'System', web: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif', default: undefined });
+// Inter wird mit der App ausgeliefert (Web: eigene Datei, nativ: siehe theme/fonts.native.ts und AppText).
+const fontFamily = Platform.select({ web: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif', default: undefined });
 
 export const typography = {
   display: { fontFamily, fontSize: 32, lineHeight: 38, fontWeight: '800' as const, letterSpacing: -0.5 },
@@ -69,7 +69,7 @@ export const MIN_TOUCH = 44;
 export const MAX_CONTENT_WIDTH = 640;
 
 /** Breite Seiten (Home) auf Laptop und PC. */
-export const MAX_WIDE_WIDTH = 1120;
+export const MAX_WIDE_WIDTH = 1040;
 
 /** Ab dieser Fensterbreite: Seitenleiste statt Tab-Leiste, mehrspaltige Layouts. */
 export const DESKTOP_BREAKPOINT = 900;

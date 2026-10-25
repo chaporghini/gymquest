@@ -11,13 +11,14 @@ import { getNextSession } from '@/domain/workout';
 import { MuscleMapCard } from '@/features/MuscleMapCard';
 import { SuggestionsList } from '@/features/SuggestionsList';
 import { useApp } from '@/state/AppProvider';
+import { useToday } from '@/state/useToday';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 export default function Training() {
   const app = useApp();
   const { plan, sessions, activeWorkout } = app;
   const [error, setError] = useState<string | null>(null);
-  const now = useMemo(() => new Date(), [sessions, plan]); // eslint-disable-line react-hooks/exhaustive-deps
+  const now = useToday();
   const week = useMemo(() => getWeekOverview(plan, sessions, now, now), [plan, sessions, now]);
   const next = useMemo(() => getNextSession(plan, sessions, now), [plan, sessions, now]);
 
@@ -34,7 +35,7 @@ export default function Training() {
 
   if (!plan || plan.days.length === 0) {
     return (
-      <Screen>
+      <Screen wide>
         <AppText variant="title" accessibilityRole="header">Training</AppText>
         <EmptyState
           icon={CalendarPlus}
@@ -54,7 +55,7 @@ export default function Training() {
   const restDays = week.days.filter((d) => !d.planDay).map((d) => WEEKDAYS_SHORT[d.weekday]);
 
   return (
-    <Screen>
+    <Screen wide>
       <View style={styles.header}>
         <AppText variant="title" accessibilityRole="header">Training</AppText>
         <AppText tone="secondary">{plan.name}</AppText>

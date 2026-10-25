@@ -6,6 +6,7 @@ import { AppText, Card, Chip } from '@/components';
 import { hasAnySets, loadFromSets, MAP_MODE_LABELS, muscleSetsFor, type MapMode } from '@/domain/muscleStats';
 import { MUSCLE_LABELS, MUSCLES, type Muscle } from '@/domain/muscles';
 import type { TrainingPlan, WorkoutSession } from '@/domain/types';
+import { useToday } from '@/state/useToday';
 import { spacing } from '@/theme/tokens';
 
 import { BodyMap } from './BodyMap';
@@ -22,7 +23,8 @@ const EMPTY_TEXT: Record<MapMode, string> = {
  */
 export function MuscleMapCard({ plan, sessions, size = 200, initialMode = 'planned' }: { plan: TrainingPlan | null; sessions: WorkoutSession[]; size?: number; initialMode?: MapMode }) {
   const [mode, setMode] = useState<MapMode>(initialMode);
-  const sets = useMemo(() => muscleSetsFor(mode, plan, sessions, new Date()), [mode, plan, sessions]);
+  const now = useToday();
+  const sets = useMemo(() => muscleSetsFor(mode, plan, sessions, now), [mode, plan, sessions, now]);
   const empty = !hasAnySets(sets);
   const top = MUSCLES.filter((m) => sets[m].direct > 0).sort((a, b) => sets[b].direct - sets[a].direct);
   const open = (m: Muscle) => router.push({ pathname: '/muscle/[id]', params: { id: m } });

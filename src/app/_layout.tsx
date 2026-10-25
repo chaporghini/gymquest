@@ -1,4 +1,5 @@
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { TriangleAlert } from 'lucide-react-native';
@@ -8,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppText, EmptyState } from '@/components';
 import { AppProvider, useApp } from '@/state/AppProvider';
+import { NATIVE_FONTS } from '@/theme/fonts';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -26,6 +28,8 @@ const navigationTheme = {
 };
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts(NATIVE_FONTS);
+  if (!fontsLoaded && !fontError) return null;
   return (
     <SafeAreaProvider>
       <ThemeProvider value={navigationTheme}>
@@ -49,7 +53,7 @@ function RootNavigator() {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.accent} size="large" />
-        <AppText tone="secondary">GYMQUEST lädt …</AppText>
+        <AppText tone="secondary">GymQuest lädt …</AppText>
       </View>
     );
   }
