@@ -1,10 +1,10 @@
-import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, router, Stack, ThemeProvider } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { TriangleAlert } from 'lucide-react-native';
+import { ArrowLeft, TriangleAlert } from 'lucide-react-native';
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppText, EmptyState } from '@/components';
@@ -80,6 +80,8 @@ function RootNavigator() {
     headerTitleStyle: { fontWeight: '700' as const },
     headerShadowVisible: false,
     headerBackButtonDisplayMode: 'minimal' as const,
+    // Immer ein Zurück-Pfeil, auch wenn die Seite direkt oder nach einem Neuladen geöffnet wurde (dann gibt es keinen Verlauf).
+    headerLeft: () => <BackButton />,
   };
 
   return (
@@ -96,7 +98,7 @@ function RootNavigator() {
         <Stack.Screen name="plan/create" options={{ ...header, title: 'Trainingsplan erstellen' }} />
         <Stack.Screen name="muscle/[id]" options={{ ...header, title: 'Muskelgruppe' }} />
         <Stack.Screen name="lesson/[id]" options={{ ...header, title: 'Techniklektion' }} />
-        <Stack.Screen name="settings" options={{ ...header, title: 'Einstellungen' }} />
+        <Stack.Screen name="settings" options={{ ...header, title: 'Einstellungen', headerLeft: () => <BackButton fallback="/profile" /> }} />
         <Stack.Screen name="plan/day/[dayId]" options={{ ...header, title: 'Einheit bearbeiten' }} />
         <Stack.Screen name="library/index" options={{ ...header, title: 'Übungsbibliothek' }} />
         <Stack.Screen name="library/[id]" options={{ ...header, title: 'Übung' }} />
@@ -107,12 +109,26 @@ function RootNavigator() {
         <Stack.Screen name="progress" options={{ ...header, title: 'XP & Ränge' }} />
         <Stack.Screen name="report" options={{ ...header, title: 'Dein Fortschritt' }} />
       </Stack.Protected>
-      <Stack.Screen name="account" options={{ ...header, title: 'Konto & Daten' }} />
+      <Stack.Screen name="account" options={{ ...header, title: 'Konto & Daten', headerLeft: () => <BackButton fallback="/profile" /> }} />
       <Stack.Screen name="+not-found" options={{ ...header, title: 'Nicht gefunden' }} />
     </Stack>
   );
 }
 
+function BackButton({ fallback = '/' }: { fallback?: '/' | '/profile' }) {
+  return (
+    <Pressable
+      onPress={() => (router.canGoBack() ? router.back() : router.replace(fallback))}
+      accessibilityRole="button"
+      accessibilityLabel="Zurück"
+      hitSlop={8}
+      style={styles.back}>
+      <ArrowLeft size={24} color={colors.text} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
   center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
 });
