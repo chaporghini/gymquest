@@ -42,7 +42,7 @@ export function NameField({ control, errors }: FieldProps) {
             value={field.value}
             onChangeText={field.onChange}
             onBlur={field.onBlur}
-            placeholder="z. B. Luis oder IronWolf"
+            placeholder="z. B. IronWolf"
             placeholderTextColor={colors.textSecondary}
             autoCapitalize="words"
             autoCorrect={false}

@@ -153,6 +153,8 @@ export interface TrainingPlan {
   days: PlanDay[];
   /** Gesetzt, wenn der Nutzer den Plan gelöscht hat (bleibt für den Cloud-Abgleich erhalten). */
   deletedAt?: string | null;
+  /** Einmalige Verschiebungen einzelner Einheiten in einer bestimmten Woche (weekKey). */
+  moves?: { week: string; dayId: string; weekday: number }[];
 }
 
 export interface SetLog {

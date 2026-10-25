@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS, SqliteGymRepository, type GymRepository } from '@/dat
 import { TrackingRepository } from '@/data/sync';
 import { createId } from '@/domain/dates';
 import { generateTrainingPlan } from '@/domain/planGenerator';
+import { moveDayInWeek } from '@/domain/planMoves';
 import { DEFAULT_PROFILE_FORM, profileFromForm, type ProfileForm } from '@/domain/profileSchema';
 import { applySuggestion, type Suggestion } from '@/domain/adaptations';
 import { collectPendingRewards } from '@/domain/progression';
@@ -56,6 +57,7 @@ interface AppContextValue {
   savePlan: (plan: TrainingPlan) => Promise<void>;
   /** Löscht den aktuellen Plan. Vergangene Trainings bleiben unverändert. */
   deletePlan: () => Promise<void>;
+  moveTraining: (dayId: string, date: Date, weekday: number) => Promise<void>;
   regeneratePlan: () => Promise<void>;
   /** Techniklektion abschließen (einmal je Übung belohnt). */
   completeLesson: (exerciseId: string) => Promise<XpEvent[]>;
@@ -240,6 +242,15 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
     await grantRewards({ plan: clean, xpEvents });
   }, [repo, grantRewards, xpEvents]);
 
+  /** Verschiebt eine Einheit nur für die Woche von `date`. */
+  const moveTraining = useCallback(async (dayId: string, date: Date, weekday: number) => {
+    if (!plan) return;
+    const next = moveDayInWeek(plan, dayId, date, weekday, new Date());
+    if (next === plan) return;
+    await repo.savePlan(next);
+    setPlan(next);
+  }, [repo, plan]);
+
   const deletePlan = useCallback(async () => {
     if (!plan) return;
     await repo.savePlan({ ...plan, deletedAt: new Date().toISOString() });
@@ -408,6 +419,7 @@ export function AppProvider({ children, repository }: { children: ReactNode; rep
     updateSettings,
     savePlan,
     deletePlan,
+    moveTraining,
     regeneratePlan,
     completeLesson,
     acceptSuggestion,

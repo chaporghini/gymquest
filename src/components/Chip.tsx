@@ -10,17 +10,19 @@ export interface ChipProps {
   accessibilityHint?: string;
   /** "radio" für Einfachauswahl, "checkbox" für Mehrfachauswahl */
   role?: 'radio' | 'checkbox' | 'button';
+  disabled?: boolean;
 }
 
-export function Chip({ label, selected, onPress, accessibilityHint, role = 'button' }: ChipProps) {
+export function Chip({ label, selected, onPress, accessibilityHint, role = 'button', disabled }: ChipProps) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole={role}
       accessibilityLabel={label}
       accessibilityHint={accessibilityHint}
-      accessibilityState={role === 'button' ? { selected } : { checked: !!selected }}
-      style={({ pressed }) => [styles.chip, selected && styles.selected, pressed && styles.pressed]}>
+      accessibilityState={role === 'button' ? { selected, disabled } : { checked: !!selected, disabled }}
+      style={({ pressed }) => [styles.chip, selected && styles.selected, pressed && styles.pressed, disabled && styles.disabled]}>
       <AppText variant="small" tone={selected ? 'accent' : 'primary'} style={selected ? styles.selectedText : undefined}>
         {label}
       </AppText>
@@ -41,4 +43,5 @@ const styles = StyleSheet.create({
   selected: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
   selectedText: { fontWeight: '700' },
   pressed: { opacity: 0.8 },
+  disabled: { opacity: 0.35 },
 });

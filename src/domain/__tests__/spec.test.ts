@@ -11,6 +11,7 @@ import { collectPendingRewards, computeChapters, computeWeeklyQuests, isFullWork
 import type { Profile, TrainingPlan, WorkoutSession, XpEvent } from '../types';
 import { createActiveWorkout, finishWorkout, getNextSession, replaceActiveExercise, togglePause, toggleSkipExercise, activeDurationSec } from '../workout';
 import { prescribe } from '../planGenerator';
+import { daysForWeek, moveDayInWeek } from '../planMoves';
 
 // Donnerstag, 22.10.2026, 10:00 Ortszeit
 const NOW = new Date(2026, 9, 22, 10, 0, 0);
@@ -286,5 +287,29 @@ describe('Kompletter Ablauf', () => {
     expect(events.filter((e) => e.source === 'workout')).toHaveLength(1);
     expect(events.map((e) => e.refId)).toContain('first_workout');
     expect((await repo.listSessions())[0].id).toBe('first');
+  });
+});
+
+describe('Training verschieben', () => {
+  const mk = (id: string, weekday: number) => ({ id, name: id, focus: '', weekday, exercises: [{ exerciseId: 'goblet_squat', sets: 3, repsMin: 8, repsMax: 12, restSeconds: 90 }] });
+  const plan = { id: 'p', name: 'P', createdAt: '2026-10-01T00:00:00.000Z', split: 'x', days: [mk('upper', 2), mk('lower', 4)] } as never;
+  const monday = new Date(2026, 9, 26, 9);
+
+  it('verschiebt Oberkörper diese Woche von Mittwoch auf Montag', () => {
+    const moved = moveDayInWeek(plan, 'upper', monday, 0, monday);
+    expect(daysForWeek(moved, monday).find((d) => d.id === 'upper')?.weekday).toBe(0);
+    expect(getNextSession(moved, [], monday)?.day.id).toBe('upper');
+    expect(getNextSession(moved, [], monday)?.isToday).toBe(true);
+    // Nächste Woche gilt wieder der normale Tag
+    expect(daysForWeek(moved, new Date(2026, 10, 2)).find((d) => d.id === 'upper')?.weekday).toBe(2);
+  });
+
+  it('tauscht, wenn am Zieltag schon eine Einheit liegt, und hebt Rückverschiebung auf', () => {
+    const swapped = moveDayInWeek(plan, 'upper', monday, 4, monday);
+    const days = daysForWeek(swapped, monday);
+    expect(days.find((d) => d.id === 'upper')?.weekday).toBe(4);
+    expect(days.find((d) => d.id === 'lower')?.weekday).toBe(2);
+    const back = moveDayInWeek(swapped, 'upper', monday, 2, monday);
+    expect(back.moves).toEqual([]);
   });
 });

@@ -67,7 +67,7 @@ export default function Training() {
           day={next.day}
           subtitle={next.isToday ? 'Heute' : next.nextWeek ? `Nächste Woche · ${WEEKDAYS_LONG[next.day.weekday]}` : WEEKDAYS_LONG[next.day.weekday]}
           highlight={next.isToday}
-          onPress={() => router.push({ pathname: '/day/[dayId]', params: { dayId: next.day.id } })}
+          onPress={() => router.push({ pathname: '/day/[dayId]', params: next.nextWeek ? { dayId: next.day.id, next: '1' } : { dayId: next.day.id } })}
           onStart={() => start(next.day.id)}
         />
       ) : null}

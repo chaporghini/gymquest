@@ -127,7 +127,7 @@ export default function Home() {
           day={next.day}
           subtitle={nextSubtitle}
           highlight={next.isToday}
-          onPress={() => router.push({ pathname: '/day/[dayId]', params: { dayId: next.day.id } })}
+          onPress={() => router.push({ pathname: '/day/[dayId]', params: next.nextWeek ? { dayId: next.day.id, next: '1' } : { dayId: next.day.id } })}
           onStart={start}
           startLabel={next.nextWeek ? 'Trotzdem jetzt trainieren' : 'Training starten'}
         />
@@ -141,7 +141,7 @@ export default function Home() {
         />
       )}
       {!activeWorkout && next && nextLoad ? (
-        <Card onPress={() => router.push({ pathname: '/day/[dayId]', params: { dayId: next.day.id } })} accessibilityLabel="Muskeln im nächsten Training" accessibilityHint="Öffnet die Einheit">
+        <Card onPress={() => router.push({ pathname: '/day/[dayId]', params: next.nextWeek ? { dayId: next.day.id, next: '1' } : { dayId: next.day.id } })} accessibilityLabel="Muskeln im nächsten Training" accessibilityHint="Öffnet die Einheit">
           <AppText variant="bodyStrong">Das trainierst du</AppText>
           <BodyMap load={nextLoad} size={170} />
         </Card>

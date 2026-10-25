@@ -1,4 +1,5 @@
 import { addDays, isSameDay, startOfDay, startOfWeek, weekKey } from './dates';
+import { planForWeek } from './planMoves';
 import { sessionsInWeek } from './progression';
 import type { PlanDay, TrainingPlan, WorkoutSession } from './types';
 
@@ -39,8 +40,9 @@ export function formatWeekRange(weekStart: Date): string {
     : `${weekStart.getDate()}. ${MONTHS[weekStart.getMonth()]} – ${end.getDate()}. ${MONTHS[end.getMonth()]} ${end.getFullYear()}`;
 }
 
-export function getWeekOverview(plan: TrainingPlan | null, sessions: WorkoutSession[], anyDateInWeek: Date, now: Date): WeekOverview {
+export function getWeekOverview(basePlan: TrainingPlan | null, sessions: WorkoutSession[], anyDateInWeek: Date, now: Date): WeekOverview {
   const weekStart = startOfWeek(anyDateInWeek);
+  const plan = planForWeek(basePlan, weekStart);
   const currentWeekStart = startOfWeek(now);
   const inWeek = sessionsInWeek(sessions, weekStart);
   const today = startOfDay(now);

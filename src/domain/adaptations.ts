@@ -1,6 +1,7 @@
 import { addDays, formatDate, isSameDay, startOfWeek, WEEKDAYS_LONG, weekdayIndex } from './dates';
 import { alternativesFor } from './exerciseInfo';
 import { plannedMuscleSets } from './muscleStats';
+import { daysForWeek } from './planMoves';
 import { MUSCLE_LABELS, musclesOf, type Muscle } from './muscles';
 import { estimateDayMinutes, isExerciseAllowed, prescribe } from './planGenerator';
 import { sessionsInWeek } from './progression';
@@ -136,8 +137,9 @@ export function computeSuggestions(input: SuggestionInput): Suggestion[] {
   const today = weekdayIndex(now);
   const doneIds = new Set(sessionsInWeek(sessions, weekStart).map((s) => s.planDayId));
   const trainedToday = sessions.some((s) => isSameDay(new Date(s.finishedAt), now));
-  const todayPlanned = plan.days.some((d) => d.weekday === today);
-  const missed = plan.days.filter((d) => d.weekday < today && !doneIds.has(d.id)).sort((a, b) => b.weekday - a.weekday)[0];
+  const weekDays = daysForWeek(plan, weekStart);
+  const todayPlanned = weekDays.some((d) => d.weekday === today);
+  const missed = weekDays.filter((d) => d.weekday < today && !doneIds.has(d.id)).sort((a, b) => b.weekday - a.weekday)[0];
   if (missed && !todayPlanned && !trainedToday) {
     result.push({
       id: `missed:${missed.id}:${addDays(weekStart, missed.weekday).toISOString().slice(0, 10)}`,

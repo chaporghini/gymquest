@@ -1,4 +1,5 @@
 import { addDays, isSameDay, startOfDay, startOfWeek, weekdayIndex } from './dates';
+import { planForWeek } from './planMoves';
 import { sessionsInWeek } from './progression';
 import type { ActiveWorkout, ExerciseFeedback, PlanDay, PlannedExercise, SessionExercise, SetLog, TrainingPlan, WorkoutSession } from './types';
 import { calculateWorkoutXp, type WorkoutXpBreakdown } from './xp';
@@ -11,9 +12,10 @@ export interface NextSession {
   nextWeek: boolean;
 }
 
-export function getNextSession(plan: TrainingPlan | null, sessions: WorkoutSession[], now: Date): NextSession | null {
-  if (!plan || plan.days.length === 0) return null;
+export function getNextSession(basePlan: TrainingPlan | null, sessions: WorkoutSession[], now: Date): NextSession | null {
+  if (!basePlan || basePlan.days.length === 0) return null;
   const weekStart = startOfWeek(now);
+  const plan = planForWeek(basePlan, weekStart);
   const doneIds = new Set(sessionsInWeek(sessions, weekStart).map((s) => s.planDayId));
   const today = weekdayIndex(now);
   const ordered = [...plan.days].sort((a, b) => a.weekday - b.weekday);
@@ -26,7 +28,7 @@ export function getNextSession(plan: TrainingPlan | null, sessions: WorkoutSessi
   }
   const missed = ordered.find((d) => !doneIds.has(d.id));
   if (missed) return { day: missed, date: startOfDay(now), isToday: true, nextWeek: false };
-  const first = ordered[0];
+  const first = [...planForWeek(basePlan, addDays(weekStart, 7)).days].sort((a, b) => a.weekday - b.weekday)[0];
   return { day: first, date: addDays(weekStart, 7 + first.weekday), isToday: false, nextWeek: true };
 }
 

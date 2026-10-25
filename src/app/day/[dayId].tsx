@@ -1,13 +1,14 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { ChevronRight, Pencil, Play, Plus, SearchX } from 'lucide-react-native';
+import { CalendarClock, ChevronRight, Pencil, Play, Plus, SearchX } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText, Button, Card, EmptyState, prescriptionText, Screen, SectionHeader } from '@/components';
+import { AppText, Button, Card, Chip, EmptyState, prescriptionText, Screen, SectionHeader } from '@/components';
 import { getExercise } from '@/data/exercises';
-import { WEEKDAYS_LONG } from '@/domain/dates';
+import { addDays, WEEKDAYS_LONG, WEEKDAYS_SHORT, weekdayIndex } from '@/domain/dates';
 import { dayMuscleLoad } from '@/domain/muscles';
 import { estimateDayMinutes, prescribe } from '@/domain/planGenerator';
+import { daysForWeek } from '@/domain/planMoves';
 import { AddExerciseAssistant } from '@/features/AddExerciseAssistant';
 import { BodyMap } from '@/features/BodyMap';
 import { useApp } from '@/state/AppProvider';
@@ -15,12 +16,19 @@ import { colors, spacing } from '@/theme/tokens';
 
 /** Eine geplante Einheit: Muskelkarte, Übungen, Start. */
 export default function DayDetail() {
-  const { dayId } = useLocalSearchParams<{ dayId: string }>();
+  const { dayId, next } = useLocalSearchParams<{ dayId: string; next?: string }>();
   const app = useApp();
   const { plan, activeWorkout, profile } = app;
   const [error, setError] = useState<string | null>(null);
   const [assistant, setAssistant] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [now] = useState(() => new Date());
+  const nextWeek = next === '1';
+  const weekDate = nextWeek ? addDays(now, 7) : now;
   const day = plan?.days.find((d) => d.id === dayId);
+  const weekDays = plan ? daysForWeek(plan, weekDate) : [];
+  const weekday = weekDays.find((d) => d.id === dayId)?.weekday ?? day?.weekday ?? 0;
+  const firstAllowed = nextWeek ? 0 : weekdayIndex(now);
   const load = useMemo(() => (day ? dayMuscleLoad(day) : null), [day]);
 
   if (!day || !load) {
@@ -53,10 +61,42 @@ export default function DayDetail() {
       }>
       <Stack.Screen options={{ title: day.name }} />
       <View style={styles.header}>
-        <AppText variant="caption" tone="accent">{WEEKDAYS_LONG[day.weekday].toUpperCase()}</AppText>
+        <AppText variant="caption" tone="accent">
+          {nextWeek ? 'NÄCHSTE WOCHE · ' : ''}{WEEKDAYS_LONG[weekday].toUpperCase()}{weekday !== day.weekday ? ` · VERSCHOBEN (SONST ${WEEKDAYS_LONG[day.weekday].toUpperCase()})` : ''}
+        </AppText>
         <AppText variant="title" accessibilityRole="header">{day.name}</AppText>
         <AppText tone="secondary">{day.exercises.length} Übungen · ca. {estimateDayMinutes(day)} min</AppText>
       </View>
+
+      {moving ? (
+        <Card style={styles.move}>
+          <AppText variant="bodyStrong">Auf welchen Tag {nextWeek ? 'nächste' : 'diese'} Woche?</AppText>
+          <View style={styles.chips} accessibilityRole="radiogroup">
+            {WEEKDAYS_SHORT.map((label, w) => (
+              <Chip
+                key={label}
+                role="radio"
+                label={label}
+                selected={w === weekday}
+                disabled={w < firstAllowed}
+                onPress={async () => {
+                  setError(null);
+                  try {
+                    await app.moveTraining(day.id, weekDate, w);
+                    setMoving(false);
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : 'Verschieben fehlgeschlagen.');
+                  }
+                }}
+              />
+            ))}
+          </View>
+          <AppText variant="small" tone="secondary">Gilt nur für diese Woche. Liegt dort schon eine Einheit, tauschen beide den Tag.</AppText>
+          <Button label="Abbrechen" size="sm" variant="ghost" onPress={() => setMoving(false)} />
+        </Card>
+      ) : (
+        <Button label="Auf anderen Tag verschieben" icon={CalendarClock} variant="secondary" size="sm" onPress={() => setMoving(true)} />
+      )}
 
       <Card>
         <BodyMap load={load} size={200} />
@@ -110,4 +150,6 @@ const styles = StyleSheet.create({
   no: { width: 16 },
   flex: { flex: 1 },
   bold: { fontWeight: '700' },
+  move: { gap: spacing.md },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
 });
