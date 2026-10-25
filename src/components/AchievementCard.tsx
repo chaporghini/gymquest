@@ -18,19 +18,22 @@ const ICONS: Record<AchievementDef['icon'], typeof Trophy> = {
 };
 
 export function AchievementCard({ achievement }: { achievement: AchievementStatus }) {
-  const Icon = achievement.unlocked ? ICONS[achievement.icon] : Lock;
+  const Icon = ICONS[achievement.icon];
   return (
     <View
-      style={[styles.card, achievement.unlocked && styles.unlocked]}
+      style={[styles.card, achievement.unlocked ? styles.unlocked : styles.locked]}
       accessible
       accessibilityLabel={`Achievement ${achievement.title}: ${achievement.description} ${achievement.unlocked ? 'Freigeschaltet.' : `Fortschritt ${achievement.progress} von ${achievement.target}.`}`}>
-      <View style={[styles.icon, achievement.unlocked && styles.iconUnlocked]}>
-        <Icon size={20} color={achievement.unlocked ? colors.onAccent : colors.textSecondary} />
+      {!achievement.unlocked ? <Lock size={14} color={colors.textSecondary} style={styles.lock} /> : null}
+      <View style={[styles.badgeRing, achievement.unlocked && styles.badgeRingOn]}>
+        <View style={[styles.icon, achievement.unlocked && styles.iconUnlocked]}>
+          <Icon size={26} color={achievement.unlocked ? colors.onAccent : colors.textSecondary} />
+        </View>
       </View>
-      <AppText variant="bodyStrong" numberOfLines={1} tone={achievement.unlocked ? 'primary' : 'secondary'}>{achievement.title}</AppText>
-      <AppText variant="small" tone="secondary" numberOfLines={2} style={styles.desc}>{achievement.description}</AppText>
+      <AppText variant="bodyStrong" align="center" numberOfLines={1} tone={achievement.unlocked ? 'primary' : 'secondary'}>{achievement.title}</AppText>
+      <AppText variant="small" tone="secondary" align="center" numberOfLines={2} style={styles.desc}>{achievement.description}</AppText>
       {achievement.unlocked ? (
-        <AppText variant="caption" tone="accent">
+        <AppText variant="caption" tone="accent" align="center">
           {achievement.unlockedAt ? formatDate(achievement.unlockedAt) : 'FREIGESCHALTET'}
         </AppText>
       ) : (
@@ -44,6 +47,7 @@ const styles = StyleSheet.create({
   card: {
     flexBasis: '47%',
     flexGrow: 1,
+    alignItems: 'stretch',
     gap: spacing.xs,
     padding: spacing.md,
     borderRadius: radius.lg,
@@ -51,8 +55,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  unlocked: { borderColor: colors.accentBorder },
-  icon: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.cardSecondary, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
+  unlocked: { borderColor: colors.accentBorder, backgroundColor: colors.accentFaint },
+  locked: { opacity: 0.75 },
+  lock: { position: 'absolute', top: spacing.md, right: spacing.md },
+  badgeRing: { alignSelf: 'center', padding: 5, borderRadius: radius.xl, borderWidth: 2, borderColor: colors.borderStrong, marginBottom: spacing.xs },
+  badgeRingOn: { borderColor: colors.accent },
+  icon: { width: 56, height: 56, borderRadius: radius.lg, backgroundColor: colors.cardSecondary, alignItems: 'center', justifyContent: 'center' },
   iconUnlocked: { backgroundColor: colors.accent },
   desc: { minHeight: 38 },
 });

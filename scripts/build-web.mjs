@@ -33,7 +33,7 @@ html = html.replace('<html lang="en">', '<html lang="de">');
 html = html.replace(/<meta name="viewport" content="[^"]*"\s*\/?>/, '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />');
 const head = `
     <meta name="description" content="Fitness-RPG: Trainingsplan, XP, Level, Quests und Ränge." />
-    <meta name="theme-color" content="#0B0D0E" />
+    <meta name="theme-color" content="#090B0A" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -41,7 +41,10 @@ const head = `
     <link rel="manifest" href="${base}manifest.webmanifest" />
     <link rel="apple-touch-icon" href="${base}icons/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="48x48" href="${base}icons/favicon-48.png" />
-    <style>html, body { background-color: #0B0D0E; color-scheme: dark; }</style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+    <style>html, body { background-color: #090B0A; color-scheme: dark; }</style>
     <script>
       if ('serviceWorker' in navigator) {
         // Hatte die Seite schon einen Service Worker, wird beim Wechsel auf eine neue Version einmal neu geladen.
